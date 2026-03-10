@@ -17,6 +17,7 @@ import { registerTools } from './tools.js';
 import { registerHooks } from './hooks.js';
 import { registerService } from './service.js';
 import { registerCli } from './cli.js';
+import { ensureHeartbeatMd } from './heartbeat-setup.js';
 import type { PluginApi } from './types.js';
 
 export type { KeyokuConfig } from './config.js';
@@ -51,6 +52,11 @@ export default function keyokuMemory(config?: KeyokuConfig) {
 
       // Register CLI subcommands
       registerCli(api, client, entityId);
+
+      // Auto-generate HEARTBEAT.md if heartbeat is enabled and file doesn't exist
+      if (cfg.heartbeat) {
+        ensureHeartbeatMd(api);
+      }
     },
   };
 }

@@ -2,7 +2,7 @@
  * Builds formatted memory context strings for prompt injection
  */
 
-import type { SearchResult, HeartbeatResult, Memory } from '@keyoku/types';
+import type { SearchResult, HeartbeatContextResult, Memory } from '@keyoku/types';
 
 /**
  * Escape potentially unsafe characters in memory text to prevent prompt injection.
@@ -27,49 +27,50 @@ export function formatMemoryContext(results: SearchResult[]): string {
 }
 
 /**
- * Format heartbeat check results into an actionable context block.
+ * Format combined heartbeat context (signals + relevant memories) into an actionable block.
+ * Used with the combined /heartbeat/context endpoint.
  */
-export function formatHeartbeatContext(hb: HeartbeatResult): string {
+export function formatHeartbeatContext(ctx: HeartbeatContextResult): string {
   const sections: string[] = [];
 
-  if (hb.deadlines.length > 0) {
-    sections.push('## Deadlines');
-    for (const m of hb.deadlines) {
+  if (ctx.scheduled.length > 0) {
+    sections.push('## Scheduled Tasks Due');
+    for (const m of ctx.scheduled) {
+      sections.push(`- ${escapeMemoryText(m.content)}`);
+    }
+  }
+
+  if (ctx.deadlines.length > 0) {
+    sections.push('## Approaching Deadlines');
+    for (const m of ctx.deadlines) {
       sections.push(`- ${escapeMemoryText(m.content)} (expires: ${m.expires_at ?? 'unknown'})`);
     }
   }
 
-  if (hb.scheduled.length > 0) {
-    sections.push('## Scheduled');
-    for (const m of hb.scheduled) {
+  if (ctx.pending_work.length > 0) {
+    sections.push('## Pending Work');
+    for (const m of ctx.pending_work) {
       sections.push(`- ${escapeMemoryText(m.content)}`);
     }
   }
 
-  if (hb.decaying.length > 0) {
-    sections.push('## Attention Needed (decaying)');
-    for (const m of hb.decaying) {
-      sections.push(`- ${escapeMemoryText(m.content)} (importance: ${m.importance.toFixed(2)})`);
-    }
-  }
-
-  if (hb.conflicts.length > 0) {
+  if (ctx.conflicts.length > 0) {
     sections.push('## Conflicts');
-    for (const c of hb.conflicts) {
+    for (const c of ctx.conflicts) {
       sections.push(`- ${escapeMemoryText(c.memory.content)} — ${escapeMemoryText(c.reason)}`);
     }
   }
 
-  if (hb.pending_work.length > 0) {
-    sections.push('## Pending Work');
-    for (const m of hb.pending_work) {
-      sections.push(`- ${escapeMemoryText(m.content)}`);
+  if (ctx.relevant_memories.length > 0) {
+    sections.push('## Relevant Memories');
+    for (const r of ctx.relevant_memories) {
+      sections.push(`- [${(r.similarity * 100).toFixed(0)}%] ${escapeMemoryText(r.memory.content)}`);
     }
   }
 
   if (sections.length === 0) return '';
 
-  return `<keyoku-heartbeat>\n${hb.summary}\n\n${sections.join('\n')}\n</keyoku-heartbeat>`;
+  return `<keyoku-heartbeat>\nYou are being checked in on. Review the signals below alongside the current conversation. If any signal warrants action (a reminder, a nudge, a status update), do it. If nothing needs attention right now, reply HEARTBEAT_OK.\n\n${sections.join('\n')}\n</keyoku-heartbeat>`;
 }
 
 /**

@@ -49,6 +49,16 @@ export interface HeartbeatResult {
   urgency?: 'immediate' | 'soon' | 'can_wait';
 }
 
+export interface HeartbeatContextResult {
+  should_act: boolean;
+  scheduled: Memory[];
+  deadlines: Memory[];
+  pending_work: Memory[];
+  conflicts: Array<{ memory: Memory; reason: string }>;
+  relevant_memories: SearchResult[];
+  summary: string;
+}
+
 export interface MemoryStats {
   total_memories: number;
   active_memories: number;

@@ -7,10 +7,11 @@ import type {
   SearchResult,
   RememberResult,
   HeartbeatResult,
+  HeartbeatContextResult,
   MemoryStats,
 } from '@keyoku/types';
 
-export { type Memory, type SearchResult, type RememberResult, type HeartbeatResult, type MemoryStats } from '@keyoku/types';
+export { type Memory, type SearchResult, type RememberResult, type HeartbeatResult, type HeartbeatContextResult, type MemoryStats } from '@keyoku/types';
 
 export class KeyokuError extends Error {
   constructor(
@@ -120,6 +121,22 @@ export class KeyokuClient {
     team_id?: string;
   }): Promise<HeartbeatResult> {
     return this.request<HeartbeatResult>('POST', '/api/v1/heartbeat/check', {
+      entity_id: entityId,
+      ...options,
+    });
+  }
+
+  /** Combined heartbeat + context search in a single call. */
+  async heartbeatContext(entityId: string, options?: {
+    query?: string;
+    top_k?: number;
+    min_score?: number;
+    deadline_window?: string;
+    max_results?: number;
+    agent_id?: string;
+    team_id?: string;
+  }): Promise<HeartbeatContextResult> {
+    return this.request<HeartbeatContextResult>('POST', '/api/v1/heartbeat/context', {
       entity_id: entityId,
       ...options,
     });
