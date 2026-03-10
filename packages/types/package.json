@@ -1,0 +1,15 @@
+{
+  "name": "@keyoku/types",
+  "version": "2.0.0",
+  "description": "Shared type definitions for Keyoku memory engine",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  }
+}

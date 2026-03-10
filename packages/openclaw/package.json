@@ -1,0 +1,28 @@
+{
+  "name": "@keyoku/openclaw",
+  "version": "2.0.0",
+  "description": "Keyoku memory plugin for OpenClaw — persistent memory, heartbeat enhancement, and scheduling",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@keyoku/memory": "2.0.0",
+    "@keyoku/types": "2.0.0",
+    "@sinclair/typebox": "^0.34.0"
+  },
+  "peerDependencies": {
+    "openclaw": ">=0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": {
+      "optional": true
+    }
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  }
+}

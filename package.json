@@ -1,0 +1,24 @@
+{
+  "name": "keyoku",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/types",
+    "packages/memory",
+    "packages/openclaw"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "clean": "rm -rf packages/*/dist",
+    "test": "vitest run"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^25.4.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}
