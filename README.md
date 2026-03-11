@@ -7,15 +7,15 @@
   </picture>
 
   <p>
-    <strong>Give your AI agents persistent memory.</strong><br>
-    <sub>Drop-in OpenClaw plugin with auto-recall, auto-capture, heartbeat, and scheduling — or use the standalone client.</sub>
+    <strong>Supercharge your OpenClaw assistant with persistent memory.</strong><br>
+    <sub>Your agent remembers everything, learns from every conversation, and acts on what it knows — automatically.</sub>
   </p>
 
   <p>
-    <a href="#quick-start">Quick Start</a> &bull;
-    <a href="#openclaw-plugin">OpenClaw Plugin</a> &bull;
-    <a href="#memory-client">Memory Client</a> &bull;
-    <a href="#api-reference">API Reference</a>
+    <a href="#get-started">Get Started</a> &bull;
+    <a href="#what-your-agent-gets">What Your Agent Gets</a> &bull;
+    <a href="#the-heartbeat">The Heartbeat</a> &bull;
+    <a href="#autonomy-levels">Autonomy Levels</a>
   </p>
 
   [![npm](https://img.shields.io/npm/v/@keyoku/openclaw?label=%40keyoku%2Fopenclaw&style=flat-square&color=6366f1)](https://www.npmjs.com/package/@keyoku/openclaw)
@@ -27,41 +27,42 @@
 
 <br>
 
-## What is Keyoku?
+## Why Keyoku?
 
-Keyoku gives AI agents **long-term memory** — they remember users, learn from conversations, and act proactively on what they know.
+Most AI assistants forget everything when the conversation ends. Keyoku changes that.
 
-The fastest way to add memory is the **OpenClaw plugin** (`@keyoku/openclaw`). Register it once and your agent gets auto-recall, auto-capture, heartbeat, scheduling, and 7 memory tools — zero boilerplate.
+With Keyoku, your OpenClaw assistant **remembers who you are**, what you've talked about, what you care about, and what's coming up — across every conversation, forever. It doesn't just store text in a file. It understands the *meaning* behind your conversations, extracts the important parts automatically, and uses that knowledge to be genuinely helpful.
 
-If you're building a custom agent (not using OpenClaw), use `@keyoku/memory` directly — a typed HTTP client for the full memory API.
+**No `.md` files. No manual memory management. No "remind me" prompts.** Your agent just *knows*.
 
-Both packages connect to [**keyoku-engine**](https://github.com/keyoku-ai/keyoku-engine), a Go-based memory engine that handles extraction, vector search, deduplication, decay, and consolidation locally with SQLite and HNSW. No external databases required.
+### The difference
 
-```
-Your Agent ──▶ @keyoku/openclaw ──▶ @keyoku/memory ──▶ keyoku-engine ──▶ SQLite + HNSW
-               (plugin)              (HTTP client)      (Go server)
-```
+| Without Keyoku | With Keyoku |
+|:---|:---|
+| Agent forgets everything between sessions | Agent remembers preferences, facts, decisions, and context |
+| You repeat yourself constantly | Agent recalls relevant details before every response |
+| Agent is reactive — waits for you to ask | Agent is proactive — surfaces deadlines, follows up, checks in |
+| Memory is a flat text file | Memory is semantic — understands meaning, detects conflicts, decays stale info |
+| One agent, one memory | Multi-agent teams with shared and private memory scopes |
 
-## Quick Start
+---
 
-### OpenClaw Plugin (recommended)
+## Get Started
+
+### 1. Install the plugin
 
 ```bash
 npm install @keyoku/openclaw
 ```
 
+### 2. Add it to your OpenClaw config
+
 ```typescript
 import keyokuMemory from '@keyoku/openclaw';
 
-// Add to your OpenClaw config — that's it
 const config = {
   plugins: {
-    'keyoku-memory': keyokuMemory({
-      autoRecall: true,          // inject relevant memories into every prompt
-      autoCapture: true,         // extract facts from every message
-      heartbeat: true,           // proactive checks for deadlines, conflicts, decay
-      incrementalCapture: true,  // capture per-message (not just end of session)
-    })
+    'keyoku-memory': keyokuMemory()  // that's it — all features are on by default
   },
   slots: {
     memory: 'keyoku-memory'
@@ -69,47 +70,191 @@ const config = {
 };
 ```
 
-That's all the code you need. Once registered, your agent automatically:
+That's all you need. Everything is enabled by default — auto-recall, auto-capture, heartbeat, incremental learning, and all 7 memory tools.
 
-1. **Recalls** relevant memories before every response (semantic search, top 5 by default)
-2. **Captures** important facts from each message into long-term memory
-3. **Checks heartbeat** for proactive signals — upcoming deadlines, decaying knowledge, conflicts
-4. **Exposes 7 tools** the agent can call: `memory_search`, `memory_store`, `memory_get`, `memory_forget`, `memory_stats`, `schedule_create`, `schedule_list`
+### 3. Make sure keyoku-engine is running
 
-#### Full configuration
+The plugin connects to [**keyoku-engine**](https://github.com/keyoku-ai/keyoku-engine), which runs locally on your machine. It stores everything in SQLite — no cloud databases, no API keys for storage, your data stays on your device.
+
+```
+Your Agent ──▶ @keyoku/openclaw ──▶ keyoku-engine ──▶ SQLite + HNSW
+               (plugin)              (local server)     (your machine)
+```
+
+> [!NOTE]
+> keyoku-engine defaults to `http://localhost:18900`. See the [keyoku-engine repo](https://github.com/keyoku-ai/keyoku-engine) for setup instructions.
+
+---
+
+## What Your Agent Gets
+
+Once the plugin is registered, your agent gains these capabilities with **zero additional code**:
+
+### Auto-Recall
+
+Before every response, Keyoku searches your agent's memory for anything relevant to what you're talking about and silently injects it into the prompt. Your agent doesn't "look up" memories — it just *knows* things about you, like a person would.
+
+> **Example:** You mentioned you prefer dark mode three weeks ago. Today you ask about UI settings — your agent already knows your preference without you saying anything.
+
+### Auto-Capture
+
+Every message you exchange is analyzed in real-time. Keyoku extracts the important parts — preferences, decisions, facts, relationships — and stores them as discrete memories. It captures the *pair* (what you said + what the agent responded) for full context.
+
+The engine automatically:
+- **Deduplicates** — won't store the same fact twice (checks by hash and meaning)
+- **Detects conflicts** — if you change your mind, the old memory gets updated
+- **Decays stale info** — old, unused memories fade over time so the freshest knowledge surfaces first
+
+### 7 Memory Tools
+
+Your agent can also *actively* use memory through these tools (registered automatically):
+
+| Tool | What it does |
+|------|-------------|
+| `memory_search` | Find memories by meaning — "what does this user like?" |
+| `memory_store` | Save something important for later |
+| `memory_get` | Read a specific memory |
+| `memory_forget` | Delete something that's no longer true |
+| `memory_stats` | See how many memories exist, by type and state |
+| `schedule_create` | Set a recurring reminder (daily, weekly, monthly, or custom cron) |
+| `schedule_list` | View all active schedules |
+
+---
+
+## The Heartbeat
+
+This is where Keyoku gets powerful.
+
+Most memory systems are passive — they store things and retrieve them when asked. Keyoku's heartbeat is **active**. On every heartbeat tick, your agent doesn't just sit idle. It reviews everything it knows and decides if there's something it should do *right now*.
+
+### How it works
+
+1. **OpenClaw fires a heartbeat tick** (every few minutes by default)
+2. **Keyoku scans all memory signals** — no LLM tokens spent on this initial check
+3. **If something needs attention**, Keyoku runs an LLM analysis to understand the situation and generates an action brief
+4. **The agent receives structured signals** telling it what to do, what to say, and how urgent it is
+
+### What the heartbeat detects
+
+The heartbeat doesn't just check one thing. It scans across **10 signal categories** simultaneously:
+
+| Signal | What it catches |
+|--------|----------------|
+| **Scheduled tasks** | Recurring reminders that are due (daily standup, weekly report, etc.) |
+| **Deadlines** | Memories with expiration dates that are approaching |
+| **Pending work** | Unfinished tasks or commitments the agent made |
+| **Conflicts** | Contradictory information that needs resolution |
+| **Goal progress** | How far along tracked goals are, with time remaining |
+| **Session continuity** | Interrupted conversations that should be resumed |
+| **Sentiment trends** | Shifts in user mood across recent conversations |
+| **Relationship alerts** | People or contacts the user hasn't engaged with in a while |
+| **Knowledge gaps** | Questions the agent couldn't answer — flagged for follow-up |
+| **Behavioral patterns** | Recurring habits or preferences detected over time |
+
+### Why this is better than a `.md` file
+
+A `HEARTBEAT.md` file is static. It tells the agent to "check in" but gives it no context, no data, and no idea what's actually going on. The agent has to guess.
+
+Keyoku's heartbeat **injects real, structured signals** directly into the agent's context:
+
+```
+<heartbeat-signals>
+## Action Brief
+The user has a project deadline in 2 days and hasn't mentioned it recently.
+
+## Suggested Actions
+- Remind the user about the Friday deadline for the API migration
+- Ask if they need help prioritizing remaining tasks
+
+## Tell the User
+Hey — just a heads up, your API migration deadline is this Friday.
+Looks like there are still 3 open tasks. Want me to help prioritize?
+
+Urgency: soon | Mode: suggest
+</heartbeat-signals>
+```
+
+The agent gets **exactly what it needs** — what's happening, what to do about it, and what to say. No guessing.
+
+### Idle check-ins
+
+If nothing urgent is happening for a while, Keyoku notices the silence. After a few quiet heartbeat ticks, it triggers a friendly check-in — referencing things it knows about you to make the message personal, not generic.
+
+---
+
+## Autonomy Levels
+
+You control how much freedom your agent has when the heartbeat detects something. Set the `autonomy` option to one of three levels:
+
+### `observe` — Watch and log
+
+The agent sees the signals but **does not act on them**. Heartbeat data is logged for debugging or review, but the agent won't message the user or take any action.
+
+**Best for:** Testing, debugging, understanding what Keyoku detects before enabling actions.
+
+### `suggest` — Recommend actions (default)
+
+The agent receives the signals and **suggests actions to the user**. It will surface reminders, ask about deadlines, and flag conflicts — but it frames everything as a suggestion, not an instruction.
+
+**Best for:** Most users. Your agent is helpful and proactive without being pushy. It says things like "Hey, your deadline is Friday — want me to help?" rather than just doing things.
+
+### `act` — Take action immediately
+
+The agent receives the signals and **executes recommended actions directly**. If a reminder is due, it sends it. If a task is overdue, it follows up. No waiting for permission.
+
+**Best for:** Power users who want a fully autonomous assistant that handles things on its own.
+
+```typescript
+// Set autonomy in your config
+keyokuMemory({
+  autonomy: 'suggest',  // 'observe' | 'suggest' | 'act'
+})
+```
+
+| Level | Agent sees signals | Agent messages user | Agent takes action |
+|-------|:-:|:-:|:-:|
+| `observe` | Yes | No | No |
+| `suggest` | Yes | Yes (as suggestions) | No |
+| `act` | Yes | Yes | Yes |
+
+---
+
+## Configuration
+
+Everything works out of the box with defaults. Customize only what you need:
 
 ```typescript
 keyokuMemory({
-  keyokuUrl: 'http://localhost:18900',  // keyoku-engine URL
-  autoRecall: true,                     // inject memories into prompts
+  keyokuUrl: 'http://localhost:18900',  // keyoku-engine server URL
+  autoRecall: true,                     // inject memories into every prompt
   autoCapture: true,                    // extract facts from conversations
-  heartbeat: true,                      // proactive heartbeat signals
-  incrementalCapture: true,             // per-message capture (vs batch)
-  topK: 5,                              // max memories per recall
+  heartbeat: true,                      // enable proactive heartbeat signals
+  incrementalCapture: true,             // capture per-message (real-time)
+  topK: 5,                              // max memories injected per prompt
   entityId: 'user-123',                 // memory namespace (default: agent name)
-  agentId: 'agent-1',                   // agent identifier for attribution
+  agentId: 'agent-1',                   // agent identifier
   captureMaxChars: 2000,                // max input chars for capture
   autonomy: 'suggest',                  // 'observe' | 'suggest' | 'act'
 })
 ```
 
-| Option | Default | Description |
+| Option | Default | What it does |
 |--------|---------|-------------|
-| `autoRecall` | `true` | Inject relevant memories into every prompt via semantic search |
-| `autoCapture` | `true` | Extract and store facts from conversations automatically |
-| `heartbeat` | `true` | Enable proactive heartbeat signals (deadlines, conflicts, decay) |
-| `incrementalCapture` | `true` | Capture per-message instead of end-of-session batch |
-| `topK` | `5` | Maximum memories injected per prompt |
-| `entityId` | agent name | Memory namespace — isolate memories per user/entity |
-| `agentId` | agent name | Agent identifier for memory attribution |
-| `autonomy` | `'suggest'` | Heartbeat mode: `observe` (log only), `suggest` (recommend), `act` (execute) |
-| `keyokuUrl` | `http://localhost:18900` | keyoku-engine server URL |
+| `autoRecall` | `true` | Before every response, search memory and inject relevant context |
+| `autoCapture` | `true` | After every message, extract and store important facts |
+| `heartbeat` | `true` | Enable the heartbeat system (proactive signals) |
+| `incrementalCapture` | `true` | Capture in real-time per message, not just at session end |
+| `topK` | `5` | How many memories to inject per prompt (higher = more context) |
+| `entityId` | agent name | Isolate memories per user — each user gets their own memory space |
+| `agentId` | agent name | Identify which agent stored a memory (useful for multi-agent setups) |
+| `autonomy` | `'suggest'` | How the agent responds to heartbeat signals (see [Autonomy Levels](#autonomy-levels)) |
+| `keyokuUrl` | `localhost:18900` | Where keyoku-engine is running |
 
 ---
 
-### Memory Client (standalone)
+## For Developers: Standalone Memory Client
 
-Use `@keyoku/memory` directly if you're building a custom agent or want full control.
+Building a custom agent without OpenClaw? Use `@keyoku/memory` directly for full programmatic access to the memory engine.
 
 ```bash
 npm install @keyoku/memory
@@ -123,95 +268,29 @@ const keyoku = new KeyokuClient();
 // Store a memory
 await keyoku.remember('user-123', 'Prefers dark mode and TypeScript');
 
-// Search by meaning
+// Semantic search
 const results = await keyoku.search('user-123', 'UI preferences');
 // => [{ memory: { content: 'Prefers dark mode...' }, similarity: 0.91 }]
 
-// Heartbeat — check if the agent should act proactively
+// Heartbeat check (zero tokens)
 const heartbeat = await keyoku.heartbeatCheck('user-123');
 if (heartbeat.should_act) {
   console.log(heartbeat.priority_action);
 }
 
-// Schedule a recurring reminder
+// Full heartbeat with LLM analysis
+const ctx = await keyoku.heartbeatContext('user-123', {
+  analyze: true,
+  autonomy: 'suggest',
+  activity_summary: 'User was working on API migration',
+});
+
+// Scheduling
 await keyoku.createSchedule('user-123', 'my-agent', 'Weekly standup prep', 'weekly');
 ```
 
-> [!NOTE]
-> Both packages require [keyoku-engine](https://github.com/keyoku-ai/keyoku-engine) running locally (default: `http://localhost:18900`).
-
-## Features
-
-<table>
-<tr>
-<td align="center" width="33%">
-  <strong>Auto-Recall</strong><br>
-  <sub>Automatically injects relevant memories into agent prompts via semantic search</sub>
-</td>
-<td align="center" width="33%">
-  <strong>Auto-Capture</strong><br>
-  <sub>Extracts facts from every message — incrementally, not just at session end</sub>
-</td>
-<td align="center" width="33%">
-  <strong>Heartbeat</strong><br>
-  <sub>Zero-token proactive checks for deadlines, decay, conflicts, and idle check-ins</sub>
-</td>
-</tr>
-<tr>
-<td align="center" width="33%">
-  <strong>7 Agent Tools</strong><br>
-  <sub>Search, store, get, forget, stats, schedule create, schedule list — all registered automatically</sub>
-</td>
-<td align="center" width="33%">
-  <strong>Scheduling</strong><br>
-  <sub>Cron-tagged memories with daily/weekly/monthly or custom cron expressions</sub>
-</td>
-<td align="center" width="33%">
-  <strong>Teams</strong><br>
-  <sub>Multi-agent memory with private, team, and global visibility scopes</sub>
-</td>
-</tr>
-</table>
-
-## Packages
-
-| Package | Description | npm |
-|---------|-------------|-----|
-| [`@keyoku/openclaw`](packages/openclaw) | **OpenClaw plugin** — auto-recall, auto-capture, heartbeat, tools, CLI | [![npm](https://img.shields.io/npm/v/@keyoku/openclaw?style=flat-square&color=6366f1)](https://www.npmjs.com/package/@keyoku/openclaw) |
-| [`@keyoku/memory`](packages/memory) | Standalone HTTP client for keyoku-engine | [![npm](https://img.shields.io/npm/v/@keyoku/memory?style=flat-square&color=6366f1)](https://www.npmjs.com/package/@keyoku/memory) |
-| [`@keyoku/types`](packages/types) | Shared TypeScript type definitions | [![npm](https://img.shields.io/npm/v/@keyoku/types?style=flat-square&color=6366f1)](https://www.npmjs.com/package/@keyoku/types) |
-
-## API Reference
-
 <details>
-<summary><strong>@keyoku/openclaw — Plugin Tools</strong></summary>
-
-<br>
-
-The plugin automatically registers these tools that your agent can call:
-
-| Tool | Description |
-|------|-------------|
-| `memory_search` | Semantic search across stored memories. Params: `query`, `maxResults?`, `minScore?` |
-| `memory_get` | Read a specific memory by ID (`mem:<id>`) or search by keyword |
-| `memory_store` | Store important information in long-term memory |
-| `memory_forget` | Delete a specific memory by ID |
-| `memory_stats` | Get memory statistics (total, active, by type/state) |
-| `schedule_create` | Create a recurring task/reminder. Tags: `daily`, `weekly`, `monthly`, or cron expression |
-| `schedule_list` | List all active schedules |
-
-**Lifecycle hooks** (automatic, no code needed):
-
-| Hook | Trigger | What it does |
-|------|---------|--------------|
-| `before_prompt_build` | Every user message | Searches memories relevant to the prompt and injects them as context |
-| `before_prompt_build` (heartbeat) | Heartbeat tick | Runs heartbeat context analysis, injects proactive signals |
-| Incremental capture | Every message | Extracts and stores facts from user and assistant messages |
-
-</details>
-
-<details>
-<summary><strong>@keyoku/memory — Client API</strong></summary>
+<summary><strong>Full Client API</strong></summary>
 
 <br>
 
@@ -237,41 +316,45 @@ const client = new KeyokuClient({ baseUrl?: string, timeout?: number });
 
 </details>
 
+---
+
+## Packages
+
+| Package | Description | npm |
+|---------|-------------|-----|
+| [`@keyoku/openclaw`](packages/openclaw) | **OpenClaw plugin** — the main package. Auto-recall, auto-capture, heartbeat, tools, CLI | [![npm](https://img.shields.io/npm/v/@keyoku/openclaw?style=flat-square&color=6366f1)](https://www.npmjs.com/package/@keyoku/openclaw) |
+| [`@keyoku/memory`](packages/memory) | Standalone HTTP client for developers building custom agents | [![npm](https://img.shields.io/npm/v/@keyoku/memory?style=flat-square&color=6366f1)](https://www.npmjs.com/package/@keyoku/memory) |
+| [`@keyoku/types`](packages/types) | Shared TypeScript type definitions | [![npm](https://img.shields.io/npm/v/@keyoku/types?style=flat-square&color=6366f1)](https://www.npmjs.com/package/@keyoku/types) |
+
 ## How It Works
 
 ```
-Your Agent (OpenClaw / custom)
+Your OpenClaw Assistant
     │
     ▼
 @keyoku/openclaw (plugin)
-    │  auto-recall: injects memories before every prompt
-    │  auto-capture: extracts facts from every message
-    │  heartbeat: proactive signals on each tick
-    │  tools: 7 memory/schedule tools for the agent
+    │  Every message:
+    │    1. Recall — search memory, inject relevant context
+    │    2. Respond — agent replies with full memory awareness
+    │    3. Capture — extract facts from the exchange
+    │  Every heartbeat tick:
+    │    4. Scan — check all 10 signal categories
+    │    5. Analyze — LLM evaluates what needs attention
+    │    6. Act — agent responds based on autonomy level
     ▼
-@keyoku/memory (HTTP client)
-    │  typed requests to keyoku-engine
+keyoku-engine (runs locally)
+    │  extraction, semantic search, dedup, decay, consolidation
     ▼
-keyoku-engine (Go server)
-    │  extraction, vector search, dedup, decay, consolidation
-    ▼
-SQLite + HNSW Vector Index
+SQLite + HNSW Vector Index (your machine, your data)
 ```
 
 ## Development
 
 ```bash
-# Install dependencies
-npm install
-
-# Build all packages
-npm run build
-
-# Run tests
-npm test
-
-# Clean build artifacts
-npm run clean
+npm install   # install dependencies
+npm run build # build all packages
+npm test      # run tests
+npm run clean # clean build artifacts
 ```
 
 Requires Node.js 20+.

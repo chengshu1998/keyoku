@@ -60,6 +60,14 @@ export function formatHeartbeatContext(ctx: HeartbeatContextResult): string {
       sections.push(`## Tell the User\n${escapeMemoryText(a.user_facing)}`);
     }
 
+    // Inject relevant memories so the LLM has knowledge context, not just action signals
+    if (ctx.relevant_memories?.length > 0) {
+      sections.push('## What You Know');
+      for (const r of ctx.relevant_memories) {
+        sections.push(`- ${escapeMemoryText(r.memory.content)}`);
+      }
+    }
+
     sections.push(`Urgency: ${a.urgency} | Mode: ${a.autonomy}`);
 
     return `<heartbeat-signals>\n${sections.join('\n\n')}\n</heartbeat-signals>`;
