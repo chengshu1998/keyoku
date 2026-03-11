@@ -5,7 +5,7 @@ import {
   formatHeartbeatContext,
   formatMemoryList,
 } from '../src/context.js';
-import type { SearchResult, HeartbeatResult, Memory } from '@keyoku/types';
+import type { SearchResult, HeartbeatContextResult, Memory } from '@keyoku/types';
 
 function makeMemory(overrides: Partial<Memory> = {}): Memory {
   return {
@@ -74,14 +74,13 @@ describe('context', () => {
 
   describe('formatHeartbeatContext', () => {
     it('returns empty string when nothing to report', () => {
-      const hb: HeartbeatResult = {
+      const hb: HeartbeatContextResult = {
         should_act: false,
         pending_work: [],
         deadlines: [],
         scheduled: [],
-        decaying: [],
         conflicts: [],
-        stale_monitors: [],
+        relevant_memories: [],
         summary: 'All clear',
       };
 
@@ -89,90 +88,160 @@ describe('context', () => {
     });
 
     it('formats deadlines section', () => {
-      const hb: HeartbeatResult = {
+      const hb: HeartbeatContextResult = {
         should_act: true,
         pending_work: [],
         deadlines: [makeMemory({ content: 'Report due', expires_at: '2024-03-15' })],
         scheduled: [],
-        decaying: [],
         conflicts: [],
-        stale_monitors: [],
+        relevant_memories: [],
         summary: 'Deadline approaching',
       };
 
       const ctx = formatHeartbeatContext(hb);
-      expect(ctx).toContain('<keyoku-heartbeat>');
-      expect(ctx).toContain('## Deadlines');
+      expect(ctx).toContain('<heartbeat-signals>');
+      expect(ctx).toContain('</heartbeat-signals>');
+      expect(ctx).toContain('## Approaching Deadlines');
       expect(ctx).toContain('Report due');
       expect(ctx).toContain('2024-03-15');
     });
 
     it('formats scheduled section', () => {
-      const hb: HeartbeatResult = {
+      const hb: HeartbeatContextResult = {
         should_act: true,
         pending_work: [],
         deadlines: [],
         scheduled: [makeMemory({ content: 'Daily standup' })],
-        decaying: [],
         conflicts: [],
-        stale_monitors: [],
+        relevant_memories: [],
         summary: 'Schedule due',
       };
 
       const ctx = formatHeartbeatContext(hb);
-      expect(ctx).toContain('## Scheduled');
+      expect(ctx).toContain('## Scheduled Tasks Due');
       expect(ctx).toContain('Daily standup');
     });
 
-    it('formats decaying memories', () => {
-      const hb: HeartbeatResult = {
-        should_act: true,
-        pending_work: [],
-        deadlines: [],
-        scheduled: [],
-        decaying: [makeMemory({ content: 'Old info', importance: 0.3 })],
-        conflicts: [],
-        stale_monitors: [],
-        summary: 'Attention needed',
-      };
-
-      const ctx = formatHeartbeatContext(hb);
-      expect(ctx).toContain('## Attention Needed');
-      expect(ctx).toContain('importance: 0.30');
-    });
-
     it('formats conflicts', () => {
-      const hb: HeartbeatResult = {
+      const hb: HeartbeatContextResult = {
         should_act: true,
         pending_work: [],
         deadlines: [],
         scheduled: [],
-        decaying: [],
         conflicts: [{ memory: makeMemory({ content: 'A says X' }), reason: 'Contradicts B' }],
-        stale_monitors: [],
+        relevant_memories: [],
         summary: 'Conflict detected',
       };
 
       const ctx = formatHeartbeatContext(hb);
       expect(ctx).toContain('## Conflicts');
+      expect(ctx).toContain('A says X');
       expect(ctx).toContain('Contradicts B');
     });
 
     it('formats pending work', () => {
-      const hb: HeartbeatResult = {
+      const hb: HeartbeatContextResult = {
         should_act: true,
         pending_work: [makeMemory({ content: 'Finish review' })],
         deadlines: [],
         scheduled: [],
-        decaying: [],
         conflicts: [],
-        stale_monitors: [],
+        relevant_memories: [],
         summary: 'Work pending',
       };
 
       const ctx = formatHeartbeatContext(hb);
       expect(ctx).toContain('## Pending Work');
       expect(ctx).toContain('Finish review');
+    });
+
+    it('formats relevant memories', () => {
+      const hb: HeartbeatContextResult = {
+        should_act: true,
+        pending_work: [],
+        deadlines: [],
+        scheduled: [],
+        conflicts: [],
+        relevant_memories: [
+          { memory: makeMemory({ content: 'Related context' }), similarity: 0.85, score: 0.8 },
+        ],
+        summary: 'Memories found',
+      };
+
+      const ctx = formatHeartbeatContext(hb);
+      expect(ctx).toContain('## Relevant Memories');
+      expect(ctx).toContain('[85%]');
+      expect(ctx).toContain('Related context');
+    });
+
+    it('includes preamble text in raw signal mode', () => {
+      const hb: HeartbeatContextResult = {
+        should_act: true,
+        pending_work: [makeMemory({ content: 'Something to do' })],
+        deadlines: [],
+        scheduled: [],
+        conflicts: [],
+        relevant_memories: [],
+        summary: 'Work pending',
+      };
+
+      const ctx = formatHeartbeatContext(hb);
+      expect(ctx).toContain('You are being checked in on');
+      expect(ctx).toContain('HEARTBEAT_OK');
+    });
+
+    it('formats analyzed heartbeat with action brief', () => {
+      const hb: HeartbeatContextResult = {
+        should_act: true,
+        pending_work: [],
+        deadlines: [],
+        scheduled: [],
+        conflicts: [],
+        relevant_memories: [],
+        summary: 'Action needed',
+        analysis: {
+          should_act: true,
+          action_brief: 'User has a meeting in 10 minutes',
+          recommended_actions: ['Remind user about the meeting'],
+          urgency: 'high',
+          reasoning: 'Calendar event approaching',
+          autonomy: 'suggest',
+          user_facing: 'You have a meeting coming up soon!',
+        },
+      };
+
+      const ctx = formatHeartbeatContext(hb);
+      expect(ctx).toContain('<heartbeat-signals>');
+      expect(ctx).toContain('## Action Brief');
+      expect(ctx).toContain('User has a meeting in 10 minutes');
+      expect(ctx).toContain('## Suggested Actions');
+      expect(ctx).toContain('Remind user about the meeting');
+      expect(ctx).toContain('## Tell the User');
+      expect(ctx).toContain('You have a meeting coming up soon!');
+      expect(ctx).toContain('Urgency: high | Mode: suggest');
+    });
+
+    it('returns empty for analysis with nothing to do', () => {
+      const hb: HeartbeatContextResult = {
+        should_act: false,
+        pending_work: [],
+        deadlines: [],
+        scheduled: [],
+        conflicts: [],
+        relevant_memories: [],
+        summary: 'All clear',
+        analysis: {
+          should_act: false,
+          action_brief: '',
+          recommended_actions: [],
+          urgency: 'none',
+          reasoning: 'Nothing notable',
+          autonomy: 'observe',
+          user_facing: '',
+        },
+      };
+
+      expect(formatHeartbeatContext(hb)).toBe('');
     });
   });
 
