@@ -29,21 +29,115 @@
 
 ## Why Keyoku?
 
-Most AI assistants forget everything when the conversation ends. Keyoku changes that.
+OpenClaw is powerful out of the box. But its built-in memory and heartbeat have real limits. Keyoku replaces both with something dramatically better.
 
-With Keyoku, your OpenClaw assistant **remembers who you are**, what you've talked about, what you care about, and what's coming up — across every conversation, forever. It doesn't just store text in a file. It understands the *meaning* behind your conversations, extracts the important parts automatically, and uses that knowledge to be genuinely helpful.
+### The memory problem
 
-**No `.md` files. No manual memory management. No "remind me" prompts.** Your agent just *knows*.
+OpenClaw's default memory is a **flat file** — `MEMORY.md`. Your agent can search it with `memory_search`, but:
 
-### The difference
+- **You have to ask.** The agent only looks at memory when it explicitly calls the search tool. If it doesn't think to search, it doesn't remember.
+- **You can't write back.** There's no way for the agent to save new memories during a conversation. Facts are lost when the session ends unless you manually edit the file.
+- **No understanding of meaning.** Search is keyword + vector similarity on text chunks. It doesn't know that "prefers TypeScript" and "likes TS" are the same thing. No deduplication, no conflict detection, no decay.
+- **Limited results.** Capped at 6 snippets, ~700 characters each. If the answer is buried in memory #47, your agent will never find it.
 
-| Without Keyoku | With Keyoku |
-|:---|:---|
-| Agent forgets everything between sessions | Agent remembers preferences, facts, decisions, and context |
-| You repeat yourself constantly | Agent recalls relevant details before every response |
-| Agent is reactive — waits for you to ask | Agent is proactive — surfaces deadlines, follows up, checks in |
-| Memory is a flat text file | Memory is semantic — understands meaning, detects conflicts, decays stale info |
-| One agent, one memory | Multi-agent teams with shared and private memory scopes |
+With Keyoku, memory is **automatic, semantic, and alive**:
+
+- **Auto-recall** — before every single response, Keyoku searches memory for anything relevant and silently injects it into the prompt. Your agent just *knows* things. No tool call needed.
+- **Auto-capture** — every message pair (what you said + what the agent responded) is analyzed in real-time. Important facts are extracted and stored automatically. No manual edits.
+- **Semantic engine** — Keyoku understands meaning. It deduplicates ("prefers TypeScript" won't be stored twice), detects conflicts (you changed your mind → old memory updated), and decays stale info (unused facts fade so fresh knowledge surfaces first).
+- **No limits** — HNSW vector index with full-text fallback. No capped snippets. The agent gets complete memories with metadata.
+
+### The heartbeat problem
+
+OpenClaw's default heartbeat reads a **static `HEARTBEAT.md` file** every 30 minutes. That's it.
+
+- **No data.** The file contains tasks you wrote manually. The agent reads them, but has zero context about *what's actually happening* — no memory awareness, no deadline tracking, no sentiment analysis.
+- **Stateless.** Each heartbeat run is isolated. The agent doesn't remember what it checked last time. It can't track trends or patterns across heartbeats.
+- **Guesswork.** The agent reads "Check for pending approvals" and has to figure out on its own what that means, what to look for, and whether anything is actually pending. Usually it just replies `HEARTBEAT_OK`.
+- **No autonomy control.** The agent either acts or doesn't. No structured levels of freedom.
+
+With Keyoku, heartbeat is **memory-aware, structured, and intelligent**:
+
+- **10 signal categories** scanned simultaneously — scheduled tasks, deadlines, pending work, conflicts, goal progress, session continuity, sentiment trends, relationship alerts, knowledge gaps, and behavioral patterns.
+- **LLM analysis** — when signals are detected, an LLM evaluates the situation and generates a structured action brief with specific recommendations and user-facing messages.
+- **Memory-driven** — the heartbeat doesn't read a file. It queries your agent's actual memory store. If you mentioned a Friday deadline two weeks ago, the heartbeat knows about it.
+- **Three autonomy levels** — `observe` (log only), `suggest` (recommend to user), `act` (execute immediately). You control how much freedom the agent has.
+- **Idle check-ins** — when nothing is urgent, Keyoku notices the silence and triggers personalized check-ins using what it knows about you. Not generic "how are you?" but "Hey, how did that API migration go?"
+
+### Side-by-side
+
+<table>
+<tr>
+<th width="33%"></th>
+<th width="33%">OpenClaw Default</th>
+<th width="33%">With Keyoku</th>
+</tr>
+<tr>
+<td><strong>Memory storage</strong></td>
+<td>Flat markdown file (MEMORY.md)</td>
+<td>Semantic engine with SQLite + HNSW vector index</td>
+</tr>
+<tr>
+<td><strong>Recall</strong></td>
+<td>Manual — agent must call <code>memory_search</code></td>
+<td>Automatic — injected before every prompt</td>
+</tr>
+<tr>
+<td><strong>Capture</strong></td>
+<td>None — no write API during sessions</td>
+<td>Automatic — every message pair analyzed and stored</td>
+</tr>
+<tr>
+<td><strong>Deduplication</strong></td>
+<td>None — same fact stored repeatedly</td>
+<td>Hash + semantic — "likes TS" won't duplicate "prefers TypeScript"</td>
+</tr>
+<tr>
+<td><strong>Conflict detection</strong></td>
+<td>None — contradictions pile up</td>
+<td>Automatic — old fact updated when you change your mind</td>
+</tr>
+<tr>
+<td><strong>Memory decay</strong></td>
+<td>None — stale info treated same as fresh</td>
+<td>Automatic — unused memories fade, recent knowledge surfaces first</td>
+</tr>
+<tr>
+<td><strong>Search results</strong></td>
+<td>6 snippets, ~700 chars each</td>
+<td>Full memories with metadata, configurable top-K</td>
+</tr>
+<tr>
+<td><strong>Heartbeat input</strong></td>
+<td>Static HEARTBEAT.md file</td>
+<td>10 signal categories from actual memory data</td>
+</tr>
+<tr>
+<td><strong>Heartbeat intelligence</strong></td>
+<td>Agent reads file and guesses</td>
+<td>LLM analysis with structured action briefs</td>
+</tr>
+<tr>
+<td><strong>Heartbeat state</strong></td>
+<td>Stateless — no memory of previous runs</td>
+<td>Memory-aware — tracks trends, patterns, and history</td>
+</tr>
+<tr>
+<td><strong>Autonomy control</strong></td>
+<td>None</td>
+<td>Three levels: observe, suggest, act</td>
+</tr>
+<tr>
+<td><strong>Scheduling</strong></td>
+<td>Basic cron events</td>
+<td>Cron-tagged memories with acknowledgment tracking</td>
+</tr>
+<tr>
+<td><strong>Multi-agent</strong></td>
+<td>Isolated per agent</td>
+<td>Private, team, and global memory scopes</td>
+</tr>
+</table>
 
 ---
 
@@ -170,11 +264,17 @@ The user has a project deadline in 2 days and hasn't mentioned it recently.
 Hey — just a heads up, your API migration deadline is this Friday.
 Looks like there are still 3 open tasks. Want me to help prioritize?
 
+## What You Know
+- User is working on API migration from REST to GraphQL
+- Deadline is Friday March 14th
+- Prefers to tackle hardest tasks first
+- Last mentioned the project 4 days ago
+
 Urgency: soon | Mode: suggest
 </heartbeat-signals>
 ```
 
-The agent gets **exactly what it needs** — what's happening, what to do about it, and what to say. No guessing.
+The agent gets **exactly what it needs** — what's happening, what to do about it, what to say, and the memory context to say it well. No guessing. Compare this to reading a static file that says "check for pending tasks."
 
 ### Idle check-ins
 
