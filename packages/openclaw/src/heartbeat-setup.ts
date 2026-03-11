@@ -15,11 +15,13 @@ You have been checked in on. Your memory system has reviewed your recent activit
 
 ## How to respond
 
-1. Read the signals carefully. Check urgency and mode.
-2. If mode is \`act\` — take action immediately. Do what the signal says.
-3. If mode is \`suggest\` and urgency is not \`none\` — surface the suggestion naturally. Keep it brief.
-4. If mode is \`suggest\`, urgency is \`none\`, but there are suggested actions or a "Tell the User" section with real content — share it conversationally. One sentence is fine.
-5. If there are truly no signals, no suggestions, and nothing to surface — reply HEARTBEAT_OK.
+IMPORTANT: If the signals contain \`should_act: true\` or a "Tell the User" section with ANY content, you MUST write a message to the user. Do NOT reply HEARTBEAT_OK in that case. Say something — even one sentence is fine.
+
+1. Read the signals carefully. Check urgency, mode, and should_act.
+2. If \`should_act\` is true — you MUST send a message. Use the "Tell the User" or "Action Brief" section as guidance for what to say. Keep it natural and brief.
+3. If mode is \`act\` — take action immediately. Do what the signal says.
+4. If mode is \`suggest\` and urgency is not \`none\` — surface the suggestion naturally.
+5. ONLY reply HEARTBEAT_OK if \`should_act\` is false AND there is truly nothing in the signals worth mentioning.
 
 Do not repeat old tasks from prior conversations. Only act on what the signals say right now.
 `;

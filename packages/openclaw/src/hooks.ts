@@ -50,6 +50,11 @@ function summarizeRecentActivity(messages: unknown[], maxMessages = 6): string {
   return parts.join('\n');
 }
 
+// Idle check-in: track consecutive quiet heartbeats.
+// After N quiet beats, force the LLM to engage with the user.
+const IDLE_CHECK_IN_INTERVAL = 3; // every 3 quiet beats (~15 min with 5m heartbeat)
+let quietHeartbeatCount = 0;
+
 export function registerHooks(
   api: PluginApi,
   client: KeyokuClient,
@@ -80,6 +85,47 @@ export function registerHooks(
             activity_summary: activitySummary || undefined,
             autonomy: config.autonomy,
           });
+
+          // Idle check-in: if nothing to act on, count quiet beats
+          if (!ctx.should_act) {
+            quietHeartbeatCount++;
+            api.logger.info?.(`keyoku: quiet heartbeat ${quietHeartbeatCount}/${IDLE_CHECK_IN_INTERVAL}`);
+
+            if (quietHeartbeatCount >= IDLE_CHECK_IN_INTERVAL) {
+              quietHeartbeatCount = 0;
+
+              // Build a check-in signal with any known memories
+              const memoryHints = ctx.relevant_memories
+                .slice(0, 3)
+                .map((r) => r.memory.content)
+                .join('; ');
+
+              const checkInBlock = [
+                '<heartbeat-signals>',
+                '## Action Brief',
+                'It has been a while since you last reached out. Send the user a brief, friendly message right now.',
+                '',
+                '## Tell the User',
+                memoryHints
+                  ? `Hey! Just checking in. Reference what you know about them: ${memoryHints}`
+                  : 'Hey! Just wanted to check in — how are things going?',
+                '',
+                '## Execute These Actions',
+                '- Send a short, warm greeting to the user',
+                '',
+                'should_act: true',
+                `Urgency: low | Mode: ${config.autonomy}`,
+                '</heartbeat-signals>',
+              ];
+
+              api.logger.info?.('keyoku: idle check-in triggered — forcing engagement');
+              return { prependContext: checkInBlock.join('\n') };
+            }
+          } else {
+            // Active heartbeat resets the quiet counter
+            quietHeartbeatCount = 0;
+          }
+
           const formatted = formatHeartbeatContext(ctx);
           if (formatted) {
             const analyzed = ctx.analysis ? ` [${ctx.analysis.autonomy}/${ctx.analysis.urgency}]` : '';

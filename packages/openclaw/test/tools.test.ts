@@ -7,6 +7,7 @@ function createMockClient() {
   return {
     search: vi.fn(),
     remember: vi.fn(),
+    getMemory: vi.fn(),
     deleteMemory: vi.fn(),
     getStats: vi.fn(),
     createSchedule: vi.fn(),
@@ -44,40 +45,42 @@ describe('tools', () => {
     registerTools(mockApi.api, mockClient as any, 'entity-1', 'agent-1');
   });
 
-  it('registers 6 tools', () => {
-    expect(mockApi.api.registerTool).toHaveBeenCalledTimes(6);
+  it('registers 7 tools', () => {
+    expect(mockApi.api.registerTool).toHaveBeenCalledTimes(7);
   });
 
-  describe('memory_recall', () => {
+  describe('memory_search', () => {
     it('searches and formats results', async () => {
       mockClient.search.mockResolvedValue([
-        { memory: { content: 'Likes TypeScript' }, similarity: 0.92, score: 0.85 },
+        { memory: { id: 'm1', content: 'Likes TypeScript' }, similarity: 0.92, score: 0.85 },
       ]);
 
-      const tool = mockApi.tools['memory_recall'];
+      const tool = mockApi.tools['memory_search'];
       const result = await tool.execute('call-1', { query: 'preferences' });
 
-      expect(mockClient.search).toHaveBeenCalledWith('entity-1', 'preferences', { limit: 5 });
-      expect(result.content[0].text).toContain('Likes TypeScript');
-      expect(result.content[0].text).toContain('92%');
+      expect(mockClient.search).toHaveBeenCalledWith('entity-1', 'preferences', { limit: 5, min_score: 0.1 });
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.results[0].snippet).toBe('Likes TypeScript');
+      expect(parsed.results[0].score).toBe(0.92);
     });
 
     it('handles no results', async () => {
       mockClient.search.mockResolvedValue([]);
 
-      const tool = mockApi.tools['memory_recall'];
+      const tool = mockApi.tools['memory_search'];
       const result = await tool.execute('call-1', { query: 'nothing' });
 
-      expect(result.content[0].text).toBe('No relevant memories found.');
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.results).toEqual([]);
     });
 
-    it('respects limit parameter', async () => {
+    it('respects maxResults parameter', async () => {
       mockClient.search.mockResolvedValue([]);
 
-      const tool = mockApi.tools['memory_recall'];
-      await tool.execute('call-1', { query: 'test', limit: 10 });
+      const tool = mockApi.tools['memory_search'];
+      await tool.execute('call-1', { query: 'test', maxResults: 10 });
 
-      expect(mockClient.search).toHaveBeenCalledWith('entity-1', 'test', { limit: 10 });
+      expect(mockClient.search).toHaveBeenCalledWith('entity-1', 'test', { limit: 10, min_score: 0.1 });
     });
   });
 

@@ -34,6 +34,12 @@ export function formatHeartbeatContext(ctx: HeartbeatContextResult): string {
   // If LLM analysis is available, use the analyzed output
   if (ctx.analysis) {
     const a = ctx.analysis;
+
+    // If analysis says nothing to do, return empty so idle check-in logic can take over
+    if (!ctx.should_act && !a.action_brief && !a.user_facing && a.recommended_actions.length === 0) {
+      return '';
+    }
+
     const sections: string[] = [];
 
     sections.push(`## Action Brief\n${escapeMemoryText(a.action_brief)}`);
