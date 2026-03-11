@@ -18,7 +18,7 @@
     <a href="#api">API Reference</a>
   </p>
 
-  [![version](https://img.shields.io/badge/version-2.0.0-6366f1?style=flat-square)](packages/)
+  [![version](https://img.shields.io/badge/version-1.0.0-6366f1?style=flat-square)](packages/)
   [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
   [![License: MIT](https://img.shields.io/badge/License-MIT-22c55e?style=flat-square)](LICENSE)
   [![GitHub Stars](https://img.shields.io/github/stars/Keyoku-ai/keyoku?style=flat-square)](https://github.com/Keyoku-ai/keyoku/stargazers)
@@ -44,9 +44,9 @@ This monorepo contains three packages:
 
 | Package | Description | Version |
 |---------|-------------|---------|
-| [`@keyoku/types`](packages/types) | Shared TypeScript type definitions | 2.0.0 |
-| [`@keyoku/memory`](packages/memory) | HTTP client for keyoku-engine | 2.0.0 |
-| [`@keyoku/openclaw`](packages/openclaw) | OpenClaw plugin for persistent memory | 2.0.0 |
+| [`@keyoku/types`](packages/types) | Shared TypeScript type definitions | 1.0.0 |
+| [`@keyoku/memory`](packages/memory) | HTTP client for keyoku-engine | 1.0.0 |
+| [`@keyoku/openclaw`](packages/openclaw) | OpenClaw plugin for persistent memory | 1.0.0 |
 
 ## Quick Start
 

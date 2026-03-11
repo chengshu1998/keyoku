@@ -22,7 +22,7 @@ What you expected to happen.
 **Environment**
 - OS: [e.g., macOS 15, Ubuntu 24.04]
 - Node.js version: [e.g., 20.x]
-- Package version: [e.g., 2.0.0]
+- Package version: [e.g., 1.0.0]
 
 **Additional context**
 Any other context, logs, or screenshots.
