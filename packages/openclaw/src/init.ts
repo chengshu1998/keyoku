@@ -334,6 +334,52 @@ function installPluginFiles(): void {
   if (existsSync(nmSrc)) {
     cpSync(nmSrc, nmDest, { recursive: true });
   }
+  // Also check parent node_modules (hoisted deps in npm workspaces)
+  const parentNm = join(packageRoot, '..', '..', 'node_modules');
+  if (existsSync(parentNm)) {
+    const sinclairSrc = join(parentNm, '@sinclair');
+    if (existsSync(sinclairSrc) && !existsSync(join(nmDest, '@sinclair'))) {
+      mkdirSync(nmDest, { recursive: true });
+      cpSync(sinclairSrc, join(nmDest, '@sinclair'), { recursive: true });
+    }
+  }
+
+  // Create entry point that calls the factory function.
+  // OpenClaw expects a plain object export with { kind, register }, not a factory function.
+  const entryPoint = `import keyokuMemory from './dist/index.js';\nconst plugin = keyokuMemory();\nexport default plugin;\n`;
+  writeFileSync(join(PLUGIN_INSTALL_DIR, 'index.js'), entryPoint, 'utf-8');
+
+  // Update package.json: set name to match plugin ID and point to wrapper entry
+  const pkgPath = join(PLUGIN_INSTALL_DIR, 'package.json');
+  if (existsSync(pkgPath)) {
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+    pkg.name = 'keyoku-memory';
+    pkg.openclaw = { extensions: ['index.js'] };
+    writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf-8');
+  }
+
+  // Create openclaw.plugin.json manifest (required by OpenClaw for discovery)
+  const manifest = {
+    id: 'keyoku-memory',
+    kind: 'memory',
+    configSchema: {
+      type: 'object',
+      additionalProperties: true,
+      properties: {
+        keyokuUrl: { type: 'string' },
+        autoCapture: { type: 'boolean' },
+        autoRecall: { type: 'boolean' },
+        heartbeat: { type: 'boolean' },
+        topK: { type: 'number', minimum: 1, maximum: 20 },
+        autonomy: { type: 'string', enum: ['observe', 'suggest', 'act'] },
+      },
+    },
+  };
+  writeFileSync(
+    join(PLUGIN_INSTALL_DIR, 'openclaw.plugin.json'),
+    JSON.stringify(manifest, null, 2) + '\n',
+    'utf-8',
+  );
 }
 
 // ── Skill Installation ───────────────────────────────────────────────────
