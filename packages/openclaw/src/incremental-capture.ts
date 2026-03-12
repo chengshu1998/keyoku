@@ -8,7 +8,7 @@
  *
  * Flow:
  * 1. `before_prompt_build` — stash the user's prompt (no /remember call yet)
- * 2. `message_sent` — pair the stashed prompt with the assistant's response,
+ * 2. `agent_end` — pair the stashed prompt with the assistant's response,
  *    send the combined exchange to Keyoku's /remember endpoint ONCE.
  *
  * Keyoku's engine then:
@@ -47,15 +47,43 @@ export function registerIncrementalCapture(
     pendingUserPrompt = ev.prompt;
   }, { priority: -10 }); // Low priority — runs after auto-recall
 
-  // Step 2: Pair with assistant response and send to Keyoku
-  api.on('message_sent', async (event: unknown) => {
-    const ev = event as { content?: string; success?: boolean };
-    if (!ev.success || !ev.content) return;
+  // Step 2: On agent_end, extract the last assistant response and pair with stashed prompt
+  api.on('agent_end', async (event: unknown) => {
+    const ev = event as {
+      messages?: Array<{ role?: string; content?: string | Array<{ type?: string; text?: string }> }>;
+      output?: string;
+      success?: boolean;
+    };
 
-    const assistantContent = ev.content;
+    // Extract assistant response from the event
+    let assistantContent = '';
 
-    // Skip noise
-    if (assistantContent.length < 20) return;
+    // Try output first (some agent modes provide this)
+    if (ev.output) {
+      assistantContent = ev.output;
+    }
+
+    // Fall back to last assistant message
+    if (!assistantContent && ev.messages) {
+      for (let i = ev.messages.length - 1; i >= 0; i--) {
+        const msg = ev.messages[i];
+        if (msg.role !== 'assistant') continue;
+
+        if (typeof msg.content === 'string') {
+          assistantContent = msg.content;
+        } else if (Array.isArray(msg.content)) {
+          assistantContent = msg.content
+            .filter((b) => b.type === 'text' && b.text)
+            .map((b) => b.text!)
+            .join(' ');
+        }
+        if (assistantContent) break;
+      }
+    }
+
+    if (!assistantContent || assistantContent.length < 20) return;
+
+    // Skip heartbeat/memory noise
     if (assistantContent === 'HEARTBEAT_OK' || assistantContent === 'NO_REPLY') return;
     if (assistantContent.includes('<heartbeat-signals>') || assistantContent.includes('<your-memories>')) return;
     if (looksLikePromptInjection(assistantContent)) return;

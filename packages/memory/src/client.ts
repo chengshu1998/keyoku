@@ -32,7 +32,7 @@ export class KeyokuClient {
 
   constructor(options: { baseUrl?: string; timeout?: number; token?: string | (() => string | undefined) }) {
     this.baseUrl = (options.baseUrl ?? 'http://localhost:18900').replace(/\/$/, '');
-    this.timeout = options.timeout ?? 10000;
+    this.timeout = options.timeout ?? 30000;
     if (typeof options.token === 'function') {
       this.tokenFn = options.token;
     } else {

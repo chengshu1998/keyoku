@@ -34,14 +34,18 @@ export default function keyokuMemory(config?: KeyokuConfig) {
     register(api: PluginApi) {
       const cfg = resolveConfig(config);
 
-      // Resolve entity/agent IDs — fall back to plugin API id
-      const entityId = cfg.entityId || api.id || 'default';
-      const agentId = cfg.agentId || api.id || 'default';
+      // Resolve entity/agent IDs
+      // entityId = who owns the memories (user namespace); agentId = which agent wrote them
+      // api.id is the plugin ID (e.g., 'keyoku-memory') — NOT useful as entity/agent fallback
+      const entityId = cfg.entityId || 'default';
+      const agentId = cfg.agentId || 'default';
 
       // Token resolved lazily — the service generates it at startup, after register()
+      // 60s timeout: remember calls LLM extraction, heartbeatContext does analysis
       const client = new KeyokuClient({
         baseUrl: cfg.keyokuUrl,
         token: () => process.env.KEYOKU_SESSION_TOKEN,
+        timeout: 60000,
       });
 
       api.logger.info(`keyoku: plugin registered (url: ${cfg.keyokuUrl}, entity: ${entityId})`);
