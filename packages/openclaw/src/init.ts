@@ -724,6 +724,8 @@ export async function init(): Promise<void> {
   if (alreadyRegistered) {
     stepHeader('Plugin Registration');
     success('Keyoku plugin already registered');
+    // Always re-install files to pick up new versions (manifest, skills, dist)
+    installPluginFiles();
   } else {
     // Step 2: Binary
     stepHeader('Install Engine Binary');
