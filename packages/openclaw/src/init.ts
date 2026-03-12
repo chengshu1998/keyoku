@@ -7,7 +7,7 @@
  * 2. Downloads keyoku-engine binary if missing
  * 3. Registers plugin in openclaw.json (with full config defaults)
  * 4. Configures DB path (~/.keyoku/data/keyoku.db)
- * 5. Sets up LLM provider + API key (OpenAI required for embeddings)
+ * 5. Sets up LLM provider + API key (embeddings auto-match extraction provider)
  * 6. Sets autonomy level (observe/suggest/act)
  * 7. Auto-detects timezone, configures quiet hours
  * 8. Installs SKILL.md (LLM guidebook) to workspace
@@ -250,13 +250,13 @@ function installSkill(): void {
 
 /**
  * Set up LLM provider and API keys.
- * OpenAI is required for embeddings. Extraction provider is configurable.
+ * Embeddings auto-match the extraction provider (no separate key needed for Gemini).
  */
 async function setupLlmProvider(): Promise<void> {
   console.log('');
   log('LLM Provider Setup');
-  log('Keyoku needs an OpenAI API key for embeddings (text-embedding-3-small).');
-  log('It also needs an LLM for memory extraction (can be OpenAI, Anthropic, or Gemini).');
+  log('Keyoku needs an LLM for memory extraction and embeddings.');
+  log('Supported providers: OpenAI, Gemini, Anthropic (embeddings via OpenAI or Gemini).');
   console.log('');
 
   // Check existing env vars
@@ -264,50 +264,83 @@ async function setupLlmProvider(): Promise<void> {
   const hasAnthropic = !!process.env.ANTHROPIC_API_KEY;
   const hasGemini = !!process.env.GEMINI_API_KEY;
 
-  if (hasOpenAI) {
-    success('OPENAI_API_KEY found in environment');
-  } else {
-    warn('OPENAI_API_KEY not found — required for memory embeddings');
-    log('Set it in your shell profile or .env file:');
-    log('  export OPENAI_API_KEY=sk-...');
-    console.log('');
-
-    const key = await prompt('Enter your OpenAI API key (or press Enter to skip):');
-    if (key && key.startsWith('sk-')) {
-      appendToEnvFile('OPENAI_API_KEY', key);
-      process.env.OPENAI_API_KEY = key;
-      success('OPENAI_API_KEY saved to ~/.keyoku/.env');
-    } else if (key) {
-      warn('That doesn\'t look like an OpenAI key (should start with sk-). Skipping.');
-    } else {
-      warn('Skipped — you\'ll need to set OPENAI_API_KEY before using memory features');
-    }
-  }
-
   // Extraction provider
   const currentProvider = process.env.KEYOKU_EXTRACTION_PROVIDER;
   if (currentProvider) {
     success(`Extraction provider: ${currentProvider} (${process.env.KEYOKU_EXTRACTION_MODEL || 'default model'})`);
-    return;
+  } else {
+    // Auto-detect best available provider
+    if (hasGemini) {
+      log('Using Gemini for extraction + embeddings (detected GEMINI_API_KEY)');
+      appendToEnvFile('KEYOKU_EXTRACTION_PROVIDER', 'gemini');
+      appendToEnvFile('KEYOKU_EXTRACTION_MODEL', 'gemini-2.5-flash');
+      appendToEnvFile('KEYOKU_EMBEDDING_PROVIDER', 'gemini');
+      appendToEnvFile('KEYOKU_EMBEDDING_MODEL', 'gemini-embedding-001');
+    } else if (hasOpenAI) {
+      log('Using OpenAI for extraction + embeddings (detected OPENAI_API_KEY)');
+      appendToEnvFile('KEYOKU_EXTRACTION_PROVIDER', 'openai');
+      appendToEnvFile('KEYOKU_EXTRACTION_MODEL', 'gpt-5-mini');
+      appendToEnvFile('KEYOKU_EMBEDDING_PROVIDER', 'openai');
+      appendToEnvFile('KEYOKU_EMBEDDING_MODEL', 'text-embedding-3-small');
+    } else if (hasAnthropic) {
+      log('Using Anthropic for extraction (detected ANTHROPIC_API_KEY)');
+      appendToEnvFile('KEYOKU_EXTRACTION_PROVIDER', 'anthropic');
+      appendToEnvFile('KEYOKU_EXTRACTION_MODEL', 'claude-haiku-4-5-20251001');
+      warn('Anthropic does not provide embeddings — you\'ll need an OpenAI or Gemini key for embeddings');
+    } else {
+      // No API key detected — prompt for one
+      console.log('');
+      log('No API key detected. Which provider would you like to use?');
+      log('  1) Gemini  (recommended — free tier, handles extraction + embeddings)');
+      log('  2) OpenAI  (handles extraction + embeddings)');
+      log('  3) Anthropic (extraction only — needs OpenAI or Gemini for embeddings)');
+      console.log('');
+
+      const choice = await prompt('Provider [1/2/3] (default: 1):');
+
+      if (choice === '2') {
+        const key = await prompt('Enter your OpenAI API key (sk-...):');
+        if (key && key.startsWith('sk-')) {
+          appendToEnvFile('OPENAI_API_KEY', key);
+          appendToEnvFile('KEYOKU_EXTRACTION_PROVIDER', 'openai');
+          appendToEnvFile('KEYOKU_EXTRACTION_MODEL', 'gpt-5-mini');
+          appendToEnvFile('KEYOKU_EMBEDDING_PROVIDER', 'openai');
+          appendToEnvFile('KEYOKU_EMBEDDING_MODEL', 'text-embedding-3-small');
+          success('OpenAI configured for extraction + embeddings');
+        } else {
+          warn('Invalid key. You\'ll need to set OPENAI_API_KEY manually.');
+        }
+      } else if (choice === '3') {
+        const key = await prompt('Enter your Anthropic API key (sk-ant-...):');
+        if (key) {
+          appendToEnvFile('ANTHROPIC_API_KEY', key);
+          appendToEnvFile('KEYOKU_EXTRACTION_PROVIDER', 'anthropic');
+          appendToEnvFile('KEYOKU_EXTRACTION_MODEL', 'claude-haiku-4-5-20251001');
+          warn('You\'ll also need an OpenAI or Gemini key for embeddings.');
+        } else {
+          warn('No key provided. Set ANTHROPIC_API_KEY manually.');
+        }
+      } else {
+        // Default: Gemini
+        const key = await prompt('Enter your Gemini API key:');
+        if (key) {
+          appendToEnvFile('GEMINI_API_KEY', key);
+          appendToEnvFile('KEYOKU_EXTRACTION_PROVIDER', 'gemini');
+          appendToEnvFile('KEYOKU_EXTRACTION_MODEL', 'gemini-2.5-flash');
+          appendToEnvFile('KEYOKU_EMBEDDING_PROVIDER', 'gemini');
+          appendToEnvFile('KEYOKU_EMBEDDING_MODEL', 'gemini-embedding-001');
+          success('Gemini configured for extraction + embeddings');
+        } else {
+          warn('No key provided. Set GEMINI_API_KEY manually.');
+        }
+      }
+    }
   }
 
-  // Auto-detect best available provider
-  if (hasOpenAI || process.env.OPENAI_API_KEY) {
-    log('Using OpenAI for memory extraction (detected OPENAI_API_KEY)');
-    appendToEnvFile('KEYOKU_EXTRACTION_PROVIDER', 'openai');
-    appendToEnvFile('KEYOKU_EXTRACTION_MODEL', 'gpt-4.1-mini');
-  } else if (hasGemini) {
-    log('Using Gemini for memory extraction (detected GEMINI_API_KEY)');
-    appendToEnvFile('KEYOKU_EXTRACTION_PROVIDER', 'gemini');
-    appendToEnvFile('KEYOKU_EXTRACTION_MODEL', 'gemini-3.1-flash-lite-preview');
-  } else if (hasAnthropic) {
-    log('Using Anthropic for memory extraction (detected ANTHROPIC_API_KEY)');
-    appendToEnvFile('KEYOKU_EXTRACTION_PROVIDER', 'anthropic');
-    appendToEnvFile('KEYOKU_EXTRACTION_MODEL', 'claude-haiku-4-5-20251001');
-  } else {
-    warn('No LLM API key detected. Memory extraction will not work.');
-    warn('Set at least one: OPENAI_API_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY');
-  }
+  // Show detected API keys
+  if (hasOpenAI) success('OPENAI_API_KEY detected');
+  if (hasGemini) success('GEMINI_API_KEY detected');
+  if (hasAnthropic) success('ANTHROPIC_API_KEY detected');
 }
 
 /**
@@ -448,7 +481,15 @@ async function healthCheck(): Promise<boolean> {
  * Main init function — orchestrates the full setup.
  */
 export async function init(): Promise<void> {
-  console.log('\n  Keyoku OpenClaw Plugin — Setup\n');
+  console.log(`
+  ╔══════════════════════════════════════════╗
+  ║                                          ║
+  ║   ▄█▀▀▀▄  Keyoku                        ║
+  ║   ██▄▄▄▀  Memory Engine for OpenClaw     ║
+  ║   ▀▀▀▀▀                                  ║
+  ║                                          ║
+  ╚══════════════════════════════════════════╝
+`);
 
   // Step 1: Detect OpenClaw
   const config = readOpenClawConfig();
@@ -587,7 +628,11 @@ export async function init(): Promise<void> {
   // Done — close readline before exiting
   closeTtyReadline();
 
-  console.log('\n  Setup complete!\n');
+  console.log('');
+  console.log('  ╔══════════════════════════════════════════╗');
+  console.log('  ║  Setup complete!                         ║');
+  console.log('  ╚══════════════════════════════════════════╝');
+  console.log('');
   log('Restart OpenClaw to load the plugin:');
   log('  openclaw restart    (or close and reopen your editor)');
   console.log('');
