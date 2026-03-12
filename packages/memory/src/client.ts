@@ -28,22 +28,32 @@ export class KeyokuClient {
   private baseUrl: string;
   private timeout: number;
   private token?: string;
+  private tokenFn?: () => string | undefined;
 
-  constructor(options: { baseUrl?: string; timeout?: number; token?: string }) {
+  constructor(options: { baseUrl?: string; timeout?: number; token?: string | (() => string | undefined) }) {
     this.baseUrl = (options.baseUrl ?? 'http://localhost:18900').replace(/\/$/, '');
     this.timeout = options.timeout ?? 10000;
-    this.token = options.token;
+    if (typeof options.token === 'function') {
+      this.tokenFn = options.token;
+    } else {
+      this.token = options.token;
+    }
+  }
+
+  private resolveToken(): string | undefined {
+    return this.tokenFn ? this.tokenFn() : this.token;
   }
 
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
     const url = `${this.baseUrl}${path}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeout);
+    const token = this.resolveToken();
 
     try {
       const headers: Record<string, string> = {};
       if (body) headers['Content-Type'] = 'application/json';
-      if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       const res = await fetch(url, {
         method,

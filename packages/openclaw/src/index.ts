@@ -38,9 +38,10 @@ export default function keyokuMemory(config?: KeyokuConfig) {
       const entityId = cfg.entityId || api.id || 'default';
       const agentId = cfg.agentId || api.id || 'default';
 
+      // Token resolved lazily — the service generates it at startup, after register()
       const client = new KeyokuClient({
         baseUrl: cfg.keyokuUrl,
-        token: process.env.KEYOKU_SESSION_TOKEN,
+        token: () => process.env.KEYOKU_SESSION_TOKEN,
       });
 
       api.logger.info(`keyoku: plugin registered (url: ${cfg.keyokuUrl}, entity: ${entityId})`);
