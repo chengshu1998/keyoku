@@ -20,7 +20,6 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
 import { pipeline } from 'node:stream/promises';
-import { execSync } from 'node:child_process';
 import { KeyokuClient } from '@keyoku/memory';
 import { importMemoryFiles } from './migration.js';
 import { migrateAllVectorStores, discoverVectorDbs } from './migrate-vector-store.js';
@@ -329,19 +328,34 @@ function installPluginFiles(): void {
     cpSync(pkgSrc, join(PLUGIN_INSTALL_DIR, 'package.json'));
   }
 
-  // Install dependencies: copy node_modules from the npx cache
-  const nmSrc = join(packageRoot, 'node_modules');
+  // Install dependencies
   const nmDest = join(PLUGIN_INSTALL_DIR, 'node_modules');
+  mkdirSync(nmDest, { recursive: true });
+
+  // Copy own node_modules if present (local dev / workspace build)
+  const nmSrc = join(packageRoot, 'node_modules');
   if (existsSync(nmSrc)) {
     cpSync(nmSrc, nmDest, { recursive: true });
   }
-  // Also check parent node_modules (hoisted deps in npm workspaces)
-  const parentNm = join(packageRoot, '..', '..', 'node_modules');
-  if (existsSync(parentNm)) {
-    const sinclairSrc = join(parentNm, '@sinclair');
-    if (existsSync(sinclairSrc) && !existsSync(join(nmDest, '@sinclair'))) {
-      mkdirSync(nmDest, { recursive: true });
-      cpSync(sinclairSrc, join(nmDest, '@sinclair'), { recursive: true });
+
+  // npx installs deps as siblings (flat node_modules), not nested.
+  // e.g. node_modules/@keyoku/openclaw + node_modules/@keyoku/memory are siblings.
+  // Also handles npm workspace hoisting where deps are in ../../node_modules.
+  const siblingDeps = ['@keyoku/memory', '@keyoku/types', '@sinclair/typebox'];
+  const searchPaths = [
+    join(packageRoot, '..'),            // npx flat: node_modules/@keyoku/.. = node_modules/
+    join(packageRoot, '..', '..', 'node_modules'), // workspace hoisted
+  ];
+  for (const dep of siblingDeps) {
+    if (existsSync(join(nmDest, dep))) continue; // already copied
+    for (const base of searchPaths) {
+      const src = join(base, dep);
+      if (existsSync(src)) {
+        const dest = join(nmDest, dep);
+        mkdirSync(dirname(dest), { recursive: true });
+        cpSync(src, dest, { recursive: true });
+        break;
+      }
     }
   }
 
@@ -809,40 +823,26 @@ export async function init(): Promise<void> {
   stepHeader('Health Check');
   await healthCheck();
 
-  // ── Restart Gateway ───────────────────────────────────────────────────
-  stepHeader('Restart Gateway');
-  const restartAnswer = await promptLower('Restart OpenClaw gateway now to load the plugin? (Y/n):');
-  const shouldRestart = restartAnswer !== 'n';
-
-  if (shouldRestart) {
-    try {
-      info('Restarting gateway...');
-      execSync('openclaw gateway restart', { stdio: 'inherit', timeout: 130_000 });
-      success('Gateway restarted — Keyoku plugin is now active');
-    } catch {
-      warn('Could not restart gateway automatically');
-      log(`Run manually: ${c.bold}openclaw gateway restart${c.reset}`);
-    }
-  } else {
-    log(`Run later: ${c.bold}openclaw gateway restart${c.reset}`);
-  }
-
   // Close readline before exiting
   closeTtyReadline();
 
   // ── Done ─────────────────────────────────────────────────────────────
+  const inContainer = existsSync('/.dockerenv') || existsSync('/run/.containerenv');
+
   console.log('');
   console.log(`  ${c.indigo}${'━'.repeat(52)}${c.reset}`);
   console.log('');
   console.log(`  ${c.green}${c.bold}  Setup complete!${c.reset}`);
   console.log('');
   console.log(`  ${c.white}Next steps:${c.reset}`);
-  if (!shouldRestart) {
-    console.log(`  ${c.gray}1.${c.reset} Restart the gateway to load the plugin`);
+  console.log(`  ${c.gray}1.${c.reset} Restart the gateway to load the plugin`);
+  if (inContainer) {
+    console.log(`     ${c.bold}docker compose restart${c.reset}  ${c.dim}(from the host)${c.reset}`);
+  } else {
     console.log(`     ${c.bold}openclaw gateway restart${c.reset}`);
-    console.log('');
   }
-  console.log(`  ${c.gray}${shouldRestart ? '1' : '2'}.${c.reset} Your agent now has persistent memory + heartbeat awareness`);
+  console.log('');
+  console.log(`  ${c.gray}2.${c.reset} Your agent now has persistent memory + heartbeat awareness`);
   console.log(`     ${c.dim}openclaw memory status${c.reset}    ${c.dim}check memory index status${c.reset}`);
   console.log(`     ${c.dim}openclaw memory search${c.reset}    ${c.dim}search stored memories${c.reset}`);
   console.log('');
