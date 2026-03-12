@@ -212,6 +212,55 @@ except:
 
   echo ""
 
+  # --- Scenario E: Heartbeat Rule Migration ---
+  bold "=== Scenario E: Heartbeat Rule Migration ==="
+
+  # The test HEARTBEAT.md has rules like "If the user seems stuck, offer help"
+  # After init with migration, these should be stored in Keyoku as memories
+  reset_env
+
+  # Copy migration source files
+  cp /home/node/.openclaw/workspace/MEMORY.md /home/node/.openclaw/MEMORY.md 2>/dev/null || true
+  if [ -d /home/node/.openclaw/workspace/memory ]; then
+    cp -r /home/node/.openclaw/workspace/memory /home/node/.openclaw/memory 2>/dev/null || true
+  fi
+
+  echo "  Starting keyoku-engine for heartbeat migration..."
+  start_keyoku
+
+  KEYOKU_RUNNING=$(curl -s -o /dev/null -w "%{http_code}" "$KEYOKU_URL/api/v1/health" 2>/dev/null || echo "000")
+  if [ "$KEYOKU_RUNNING" = "200" ]; then
+    printf 'suggest\n\ny\n\n\ny\n' | node "$INIT_BIN" 2>&1 || true
+    sleep 8
+
+    # Search for migrated heartbeat rules
+    SEARCH_HB=$(keyoku_post "/api/v1/search" '{"entity_id":"default","query":"heartbeat rule stuck help deadline repeat short","limit":10,"min_score":0.1}')
+    HAS_HB_RULES=$(python3 -c "
+import json
+try:
+  r = json.loads('''$SEARCH_HB''')
+  results = r if isinstance(r, list) else r.get('results', [])
+  print('true' if len(results) > 0 else 'false')
+except:
+  print('false')
+" 2>/dev/null || echo "false")
+    assert "Heartbeat rules migrated into Keyoku" "$HAS_HB_RULES"
+
+    # Verify HEARTBEAT.md has keyoku section
+    HEARTBEAT_FILE="/home/node/.openclaw/workspace/HEARTBEAT.md"
+    HAS_KEYOKU_SECTION=$(grep -q "keyoku-heartbeat-start" "$HEARTBEAT_FILE" 2>/dev/null && echo true || echo false)
+    assert "HEARTBEAT.md has keyoku section after migration" "$HAS_KEYOKU_SECTION"
+
+    # Verify original content preserved
+    HAS_ORIGINAL_RULES=$(grep -q "If the user seems stuck" "$HEARTBEAT_FILE" 2>/dev/null && echo true || echo false)
+    assert "Original heartbeat rules preserved" "$HAS_ORIGINAL_RULES"
+  else
+    skip "Keyoku not running — skipping heartbeat migration"
+  fi
+
+  kill_keyoku
+  echo ""
+
   # Cleanup migration source files
   rm -f /home/node/.openclaw/MEMORY.md
   rm -rf /home/node/.openclaw/memory

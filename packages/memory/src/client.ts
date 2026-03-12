@@ -159,6 +159,17 @@ export class KeyokuClient {
     });
   }
 
+  async recordHeartbeatMessage(entityId: string, message: string, options?: {
+    agent_id?: string;
+    action_id?: string;
+  }): Promise<{ status: string; id: string }> {
+    return this.request<{ status: string; id: string }>('POST', '/api/v1/heartbeat/record-message', {
+      entity_id: entityId,
+      message,
+      ...options,
+    });
+  }
+
   // === Schedules ===
 
   async createSchedule(entityId: string, agentId: string, content: string, cronTag: string): Promise<Memory> {

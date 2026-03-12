@@ -27,153 +27,199 @@ export function formatMemoryContext(results: SearchResult[]): string {
 }
 
 /**
- * Format combined heartbeat context (signals + relevant memories) into an actionable block.
- * Used with the combined /heartbeat/context endpoint.
+ * Format combined heartbeat context (signals + relevant memories) into natural language.
+ * Replaces structured data dump with a briefing the AI can act on naturally.
  */
 export function formatHeartbeatContext(ctx: HeartbeatContextResult): string {
-  // Nudge: engine selected a specific memory to reference naturally
-  if (ctx.decision_reason === 'nudge' && ctx.nudge_context) {
-    const sections: string[] = [];
-    sections.push(`## Nudge\nYou haven't heard from the user in a while. Here's something from memory you could casually bring up — only if it feels natural and useful. ONE short sentence max.`);
-    sections.push(`- ${escapeMemoryText(ctx.nudge_context)}`);
+  const lines: string[] = [];
 
-    if (ctx.relevant_memories?.length > 0) {
-      sections.push('## What You Know');
-      for (const r of ctx.relevant_memories) {
-        sections.push(`- ${escapeMemoryText(r.memory.content)}`);
-      }
-    }
-
-    return `<heartbeat-signals>\n${sections.join('\n\n')}\n</heartbeat-signals>`;
+  // First-contact mode
+  if (ctx.decision_reason === 'first_contact') {
+    lines.push('This is your first check-in with this user. You have very few memories about them.');
+    lines.push('Introduce yourself briefly and naturally.');
+    return wrapSignals(lines);
   }
 
-  // If LLM analysis is available, use the analyzed output
+  // Nudge mode
+  if (ctx.decision_reason === 'nudge' && ctx.nudge_context) {
+    lines.push(`It's been quiet. Here's something worth mentioning:`);
+    lines.push(`- ${escapeMemoryText(ctx.nudge_context)}`);
+    appendMemories(lines, ctx);
+    appendRecentMessages(lines, ctx);
+    appendTimePeriod(lines, ctx);
+    return wrapSignals(lines);
+  }
+
+  // LLM-analyzed signals
   if (ctx.analysis) {
     const a = ctx.analysis;
-
-    // If analysis says nothing to do, return empty so idle check-in logic can take over
     if (!ctx.should_act && !a.action_brief && !a.user_facing && (a.recommended_actions?.length ?? 0) === 0) {
       return '';
     }
 
-    const sections: string[] = [];
-
-    sections.push(`## Action Brief\n${escapeMemoryText(a.action_brief)}`);
-
-    if (a.recommended_actions?.length > 0) {
-      const header = a.autonomy === 'act'
-        ? '## Execute These Actions'
-        : a.autonomy === 'suggest'
-        ? '## Suggested Actions'
-        : '## Observations';
-      sections.push(header);
-      for (const action of a.recommended_actions) {
-        sections.push(`- ${escapeMemoryText(action)}`);
-      }
+    if (a.action_brief) {
+      lines.push(escapeMemoryText(a.action_brief));
     }
-
     if (a.user_facing) {
-      sections.push(`## Tell the User\n${escapeMemoryText(a.user_facing)}`);
+      lines.push(`Key message: ${escapeMemoryText(a.user_facing)}`);
     }
-
-    // Inject relevant memories so the LLM has knowledge context, not just action signals
-    if (ctx.relevant_memories?.length > 0) {
-      sections.push('## What You Know');
-      for (const r of ctx.relevant_memories) {
-        sections.push(`- ${escapeMemoryText(r.memory.content)}`);
+    if (a.recommended_actions?.length > 0) {
+      for (const action of a.recommended_actions) {
+        lines.push(`- ${escapeMemoryText(action)}`);
       }
     }
 
-    sections.push(`Urgency: ${a.urgency} | Mode: ${a.autonomy}`);
+    appendMemories(lines, ctx);
+    appendEscalation(lines, ctx);
+    appendRecentMessages(lines, ctx);
+    appendTimePeriod(lines, ctx);
+    appendSentiment(lines, ctx);
 
-    return `<heartbeat-signals>\n${sections.join('\n\n')}\n</heartbeat-signals>`;
+    return wrapSignals(lines);
   }
 
-  // Fall back to raw signal formatting when no LLM analysis
-  const sections: string[] = [];
+  // Raw signal formatting (no LLM analysis)
+
+  // Urgent items first
+  if (ctx.deadlines?.length > 0) {
+    for (const m of ctx.deadlines) {
+      lines.push(`DEADLINE: ${escapeMemoryText(m.content)} (expires: ${m.expires_at ?? 'soon'})`);
+    }
+  }
 
   if (ctx.scheduled?.length > 0) {
-    sections.push('## Scheduled Tasks Due');
     for (const m of ctx.scheduled) {
-      sections.push(`- ${escapeMemoryText(m.content)}`);
+      lines.push(`DUE NOW: ${escapeMemoryText(m.content)}`);
     }
   }
 
-  if (ctx.deadlines?.length > 0) {
-    sections.push('## Approaching Deadlines');
-    for (const m of ctx.deadlines) {
-      sections.push(`- ${escapeMemoryText(m.content)} (expires: ${m.expires_at ?? 'unknown'})`);
-    }
-  }
-
+  // Active work
   if (ctx.pending_work?.length > 0) {
-    sections.push('## Pending Work');
+    lines.push('Active tasks:');
     for (const m of ctx.pending_work) {
-      sections.push(`- ${escapeMemoryText(m.content)}`);
+      lines.push(`- ${escapeMemoryText(m.content)}`);
     }
   }
 
-  if (ctx.conflicts?.length > 0) {
-    sections.push('## Conflicts');
-    for (const c of ctx.conflicts) {
-      sections.push(`- ${escapeMemoryText(c.memory.content)} — ${escapeMemoryText(c.reason)}`);
-    }
-  }
-
-  if (ctx.relevant_memories?.length > 0) {
-    sections.push('## Relevant Memories');
-    for (const r of ctx.relevant_memories) {
-      sections.push(`- [${(r.similarity * 100).toFixed(0)}%] ${escapeMemoryText(r.memory.content)}`);
-    }
-  }
-
+  // Goal progress (only meaningful ones — no_activity already filtered by engine)
   if (ctx.goal_progress && ctx.goal_progress.length > 0) {
-    sections.push('## Goal Progress');
     for (const g of ctx.goal_progress) {
-      const daysStr = g.days_left >= 0 ? `${Math.round(g.days_left)} days left` : 'no deadline';
-      sections.push(`- ${escapeMemoryText(g.plan.content)} (${Math.round(g.progress * 100)}% done, ${daysStr}, ${g.status})`);
+      const daysStr = g.days_left >= 0 ? `, ${Math.round(g.days_left)} days left` : '';
+      lines.push(`Goal: ${escapeMemoryText(g.plan.content)} — ${g.status} (${Math.round(g.progress * 100)}% done${daysStr})`);
     }
   }
 
+  // Continuity
   if (ctx.continuity?.was_interrupted) {
-    sections.push('## Session Continuity');
-    sections.push(`- ${escapeMemoryText(ctx.continuity.resume_suggestion)} (${Math.round(ctx.continuity.session_age_hours)}h ago)`);
+    lines.push(`They were working on something ${Math.round(ctx.continuity.session_age_hours)}h ago: ${escapeMemoryText(ctx.continuity.resume_suggestion)}`);
   }
 
-  if (ctx.sentiment_trend && ctx.sentiment_trend.direction !== 'stable') {
-    sections.push(`## Sentiment Trend: ${ctx.sentiment_trend.direction}`);
-    sections.push(`- Recent avg: ${ctx.sentiment_trend.recent_avg.toFixed(2)}, Previous avg: ${ctx.sentiment_trend.previous_avg.toFixed(2)}`);
-    if (ctx.sentiment_trend.notable?.length > 0) {
-      for (const m of ctx.sentiment_trend.notable) {
-        sections.push(`- [sentiment: ${m.sentiment.toFixed(2)}] ${escapeMemoryText(m.content)}`);
-      }
+  // Conflicts
+  if (ctx.conflicts?.length > 0) {
+    for (const c of ctx.conflicts) {
+      lines.push(`Conflict: ${escapeMemoryText(c.reason)}`);
     }
   }
 
+  // Positive deltas — good news
+  if (ctx.positive_deltas && ctx.positive_deltas.length > 0) {
+    for (const d of ctx.positive_deltas) {
+      lines.push(`Good news: ${escapeMemoryText(d.description)}`);
+    }
+  }
+
+  // Relationship alerts
   if (ctx.relationship_alerts && ctx.relationship_alerts.length > 0) {
-    sections.push('## Relationship Alerts');
     for (const r of ctx.relationship_alerts) {
-      sections.push(`- ${escapeMemoryText(r.entity_name)}: silent for ${r.days_silent} days [${r.urgency}]`);
+      lines.push(`Haven't heard from ${escapeMemoryText(r.entity_name)} in ${r.days_silent} days`);
     }
   }
 
-  if (ctx.knowledge_gaps && ctx.knowledge_gaps.length > 0) {
-    sections.push('## Knowledge Gaps');
-    for (const g of ctx.knowledge_gaps) {
-      sections.push(`- ${escapeMemoryText(g.question)}`);
+  // Sentiment trend
+  appendSentiment(lines, ctx);
+
+  // What you know about them
+  appendMemories(lines, ctx);
+
+  // Escalation context
+  appendEscalation(lines, ctx);
+
+  // Recent messages for dedup
+  appendRecentMessages(lines, ctx);
+
+  // Time of day
+  appendTimePeriod(lines, ctx);
+
+  if (lines.length === 0) return '';
+
+  return wrapSignals(lines);
+}
+
+function wrapSignals(lines: string[]): string {
+  return `<heartbeat-signals>\n${lines.join('\n')}\n</heartbeat-signals>`;
+}
+
+function appendMemories(lines: string[], ctx: HeartbeatContextResult): void {
+  if (ctx.relevant_memories?.length > 0) {
+    lines.push('');
+    lines.push('What you know about them:');
+    for (const r of ctx.relevant_memories) {
+      lines.push(`- ${escapeMemoryText(r.memory.content)}`);
     }
   }
+}
 
-  if (ctx.behavioral_patterns && ctx.behavioral_patterns.length > 0) {
-    sections.push('## Behavioral Patterns');
-    for (const p of ctx.behavioral_patterns) {
-      sections.push(`- ${escapeMemoryText(p.description)} (${Math.round(p.confidence * 100)}% confidence)`);
+function appendEscalation(lines: string[], ctx: HeartbeatContextResult): void {
+  const level = ctx.escalation_level;
+  if (level && level > 1) {
+    lines.push('');
+    if (level === 2) {
+      lines.push('You mentioned this topic before. Be more direct this time.');
+    } else if (level === 3) {
+      lines.push('You\'ve brought this up twice already. Offer specific help or drop it.');
+    } else if (level >= 4) {
+      lines.push('You\'ve mentioned this multiple times with no response. Drop it unless they bring it up.');
     }
   }
+}
 
-  if (sections.length === 0) return '';
+function appendRecentMessages(lines: string[], ctx: HeartbeatContextResult): void {
+  const msgs = ctx.recent_messages;
+  if (msgs && msgs.length > 0) {
+    lines.push('');
+    lines.push('DO NOT repeat these recent messages:');
+    for (const m of msgs) {
+      lines.push(`- "${escapeMemoryText(m.length > 100 ? m.slice(0, 100) + '...' : m)}"`);
+    }
+  }
+}
 
-  return `<heartbeat-signals>\nReview the signals below. If something genuinely warrants a message (a deadline, a reminder, new info), send ONE short sentence. Do NOT repeat things you have already said. If nothing is new or urgent, reply HEARTBEAT_OK.\n\n${sections.join('\n')}\n</heartbeat-signals>`;
+function appendTimePeriod(lines: string[], ctx: HeartbeatContextResult): void {
+  const period = ctx.time_period;
+  if (period) {
+    const toneMap: Record<string, string> = {
+      morning: 'It\'s morning. Be energetic and proactive.',
+      working: '',
+      evening: 'It\'s evening. Keep it brief.',
+      late_night: 'It\'s late. Only mention this if it\'s truly urgent.',
+      quiet: 'It\'s very late. This should be urgent to justify messaging.',
+    };
+    const tone = toneMap[period];
+    if (tone) {
+      lines.push('');
+      lines.push(tone);
+    }
+  }
+}
+
+function appendSentiment(lines: string[], ctx: HeartbeatContextResult): void {
+  if (ctx.sentiment_trend && ctx.sentiment_trend.direction !== 'stable') {
+    if (ctx.sentiment_trend.direction === 'declining') {
+      lines.push('Their tone has been more negative recently. Be thoughtful and supportive.');
+    } else if (ctx.sentiment_trend.direction === 'improving') {
+      lines.push('Their mood seems to be improving. Match their positive energy.');
+    }
+  }
 }
 
 /**

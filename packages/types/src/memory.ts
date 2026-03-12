@@ -127,11 +127,16 @@ export interface HeartbeatContextResult {
   // Conversation state
   in_conversation?: boolean;
 
+  // Time and escalation awareness
+  time_period?: string;       // "morning", "working", "evening", "late_night", "quiet"
+  escalation_level?: number;  // 1=casual, 2=direct, 3=offer help, 4+=dropped
+
   // v2: Intelligence metadata
   response_rate?: number;
   confluence_score?: number;
   positive_deltas?: PositiveDelta[];
   graph_context?: string[];
+  recent_messages?: string[]; // last N heartbeat messages for dedup
 }
 
 export interface PositiveDelta {

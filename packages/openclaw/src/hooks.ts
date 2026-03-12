@@ -201,6 +201,51 @@ export function registerHooks(
     });
   }
 
+  // Record heartbeat messages for dedup — captures what the AI actually said
+  if (config.heartbeat) {
+    api.on('agent_end', async (event: unknown) => {
+      const ev = event as {
+        messages?: Array<{ role?: string; content?: string | Array<{ type?: string; text?: string }> }>;
+        output?: string;
+      };
+
+      // Check if this was a heartbeat response
+      const messages = ev.messages ?? [];
+      const wasHeartbeat = messages.some((m) => {
+        const text = typeof m.content === 'string' ? m.content : '';
+        return m.role === 'user' && text.includes('HEARTBEAT');
+      });
+      if (!wasHeartbeat) return;
+
+      // Extract assistant response
+      let response = ev.output ?? '';
+      if (!response) {
+        for (let i = messages.length - 1; i >= 0; i--) {
+          const msg = messages[i];
+          if (msg.role !== 'assistant') continue;
+          if (typeof msg.content === 'string') {
+            response = msg.content;
+          } else if (Array.isArray(msg.content)) {
+            response = (msg.content as Array<{ type?: string; text?: string }>)
+              .filter((b) => b.type === 'text' && b.text)
+              .map((b) => b.text!)
+              .join(' ');
+          }
+          if (response) break;
+        }
+      }
+
+      // Don't record non-messages
+      if (!response || response === 'HEARTBEAT_OK' || response === 'NO_REPLY' || response.length < 10) return;
+
+      try {
+        await client.recordHeartbeatMessage(entityId, response, { agent_id: agentId });
+      } catch (err) {
+        api.logger.warn(`keyoku: failed to record heartbeat message: ${String(err)}`);
+      }
+    });
+  }
+
   // NOTE: agent_end capture removed — incremental capture (incremental-capture.ts)
   // now handles both user and assistant messages in real-time, making the
   // session-end batch capture redundant. This also eliminates the only source

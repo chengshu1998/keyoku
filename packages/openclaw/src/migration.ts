@@ -28,7 +28,7 @@ interface MemoryChunk {
  * Each heading section becomes one chunk.
  * If no headings, split by --- separators or paragraphs.
  */
-function chunkByHeadings(content: string, maxChunkChars = 1000): MemoryChunk[] {
+export function chunkByHeadings(content: string, maxChunkChars = 1000): MemoryChunk[] {
   const chunks: MemoryChunk[] = [];
 
   // Try splitting by headings first

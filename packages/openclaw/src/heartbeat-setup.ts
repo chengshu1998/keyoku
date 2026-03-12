@@ -15,21 +15,27 @@ const HEARTBEAT_FILENAME = 'HEARTBEAT.md';
 const KEYOKU_SECTION_MARKER = '<!-- keyoku-heartbeat-start -->';
 const KEYOKU_SECTION_END = '<!-- keyoku-heartbeat-end -->';
 
-const KEYOKU_HEARTBEAT_INSTRUCTIONS = `## Keyoku Memory Heartbeat
+const KEYOKU_HEARTBEAT_INSTRUCTIONS = `## Heartbeat Check-In
 
-You have been checked in on. Your memory system has reviewed your recent activity and surfaced anything that needs your attention. The signals are injected into your context automatically — look for the <heartbeat-signals> block.
+Your memory system surfaced things that may need attention. They appear in a <heartbeat-signals> block.
 
 ### How to respond
+- If something warrants a message, write ONE brief message. Lead with the most important thing.
+- If nothing is worth saying, reply exactly: HEARTBEAT_OK
+- Never fabricate things to say. If signals are empty or stale, be quiet.
+- Never explain that you have a memory system. Speak from what you know, naturally.
+- Never repeat something you said in a recent heartbeat (check "recent messages" if present).
+- Use your persona and voice as configured — the signals tell you WHAT to say, your character determines HOW.
 
-IMPORTANT: If the signals contain \`should_act: true\` or a "Tell the User" section with ANY content, you MUST write a message to the user. Do NOT reply HEARTBEAT_OK in that case. Say something — even one sentence is fine.
+### Escalation
+If signals indicate you've mentioned something before:
+- 1st time: casual mention
+- 2nd time: more direct
+- 3rd time: offer specific help
+- 4th+: drop it unless they bring it up
 
-1. Read the signals carefully. Check urgency, mode, and should_act.
-2. If \`should_act\` is true — you MUST send a message. Use the "Tell the User" or "Action Brief" section as guidance for what to say. Keep it natural and brief.
-3. If mode is \`act\` — take action immediately. Do what the signal says.
-4. If mode is \`suggest\` and urgency is not \`none\` — surface the suggestion naturally.
-5. ONLY reply HEARTBEAT_OK if \`should_act\` is false AND there is truly nothing in the signals worth mentioning.
-
-Do not repeat old tasks from prior conversations. Only act on what the signals say right now.`;
+### Time awareness
+Adjust tone to time of day (provided in signals). Morning = energetic, evening = brief, late night = only if urgent.`;
 
 const HEARTBEAT_TEMPLATE = `# Heartbeat Check
 
@@ -99,9 +105,11 @@ export function ensureHeartbeatMd(api: PluginApi): void {
       return;
     }
 
-    // No meaningful content — write full template
-    writeFileSync(heartbeatPath, HEARTBEAT_TEMPLATE, 'utf-8');
-    api.logger.info(`keyoku: created ${HEARTBEAT_FILENAME} for heartbeat support`);
+    // No meaningful user content — append keyoku section rather than overwriting
+    // (init.ts is the primary writer; this is a fallback that preserves any file content)
+    const addendum = `\n\n${KEYOKU_SECTION_MARKER}\n${KEYOKU_HEARTBEAT_INSTRUCTIONS}\n${KEYOKU_SECTION_END}\n`;
+    writeFileSync(heartbeatPath, content.trimEnd() + addendum, 'utf-8');
+    api.logger.info(`keyoku: appended keyoku section to ${HEARTBEAT_FILENAME}`);
   } catch (err) {
     api.logger.warn(`keyoku: could not create ${HEARTBEAT_FILENAME}: ${String(err)}`);
   }

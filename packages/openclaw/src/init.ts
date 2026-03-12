@@ -23,6 +23,8 @@ import { pipeline } from 'node:stream/promises';
 import { KeyokuClient } from '@keyoku/memory';
 import { importMemoryFiles } from './migration.js';
 import { migrateAllVectorStores, discoverVectorDbs } from './migrate-vector-store.js';
+import { extractHeartbeatRules, migrateHeartbeatRules, type HeartbeatRule } from './heartbeat-migration.js';
+import { findKeyokuBinary, loadKeyokuEnv, waitForHealthy } from './service.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -440,15 +442,16 @@ function installSkill(): void {
  * Install HEARTBEAT.md to the OpenClaw workspace directory.
  * Must be done at init time (not at plugin register time) because OpenClaw's
  * heartbeat system overwrites the file with a default placeholder after plugins register.
+ *
+ * If an existing HEARTBEAT.md has user content, preserves it and appends keyoku section.
+ * Returns extracted heartbeat rules for migration into Keyoku.
  */
-function installHeartbeatMd(): void {
+function installHeartbeatMd(): HeartbeatRule[] {
   const workspaceDir = join(HOME, '.openclaw', 'workspace');
   mkdirSync(workspaceDir, { recursive: true });
   const heartbeatPath = join(workspaceDir, 'HEARTBEAT.md');
 
-  const HEARTBEAT_CONTENT = `# Heartbeat Check
-
-<!-- keyoku-heartbeat-start -->
+  const KEYOKU_SECTION = `<!-- keyoku-heartbeat-start -->
 ## Keyoku Memory Heartbeat
 
 You have been checked in on. Your memory system has reviewed your recent activity and surfaced anything that needs your attention. The signals are injected into your context automatically — look for the <heartbeat-signals> block.
@@ -464,20 +467,35 @@ IMPORTANT: If the signals contain \`should_act: true\` or a "Tell the User" sect
 5. ONLY reply HEARTBEAT_OK if \`should_act\` is false AND there is truly nothing in the signals worth mentioning.
 
 Do not repeat old tasks from prior conversations. Only act on what the signals say right now.
-<!-- keyoku-heartbeat-end -->
-`;
+<!-- keyoku-heartbeat-end -->`;
 
-  // If file exists and already has keyoku section, skip
+  let extractedRules: HeartbeatRule[] = [];
+
   if (existsSync(heartbeatPath)) {
     const existing = readFileSync(heartbeatPath, 'utf-8');
+
+    // Extract user rules before modifying the file
+    extractedRules = extractHeartbeatRules(existing);
+    if (extractedRules.length > 0) {
+      info(`Found ${extractedRules.length} heartbeat rule(s) to migrate`);
+    }
+
     if (existing.includes('keyoku-heartbeat-start')) {
       success('HEARTBEAT.md already configured');
-      return;
+      return extractedRules;
     }
+
+    // Preserve existing user content, append keyoku section
+    const content = existing.trimEnd() + `\n\n---\n\n${KEYOKU_SECTION}\n`;
+    writeFileSync(heartbeatPath, content, 'utf-8');
+    success(`HEARTBEAT.md updated (preserved existing content) → ${c.dim}~/.openclaw/workspace/${c.reset}`);
+    return extractedRules;
   }
 
-  writeFileSync(heartbeatPath, HEARTBEAT_CONTENT, 'utf-8');
+  // No existing file — write full template
+  writeFileSync(heartbeatPath, `# Heartbeat Check\n\n${KEYOKU_SECTION}\n`, 'utf-8');
   success(`HEARTBEAT.md installed → ${c.dim}~/.openclaw/workspace/${c.reset}`);
+  return extractedRules;
 }
 
 // ── LLM Provider Setup ──────────────────────────────────────────────────
@@ -711,6 +729,69 @@ async function setupTimezoneAndQuietHours(): Promise<void> {
   success(`Quiet hours → ${c.bold}${isNaN(start) ? 23 : start}:00 – ${isNaN(end) ? 7 : end}:00${c.reset} (${timezone})`);
 }
 
+// ── Start Keyoku for Migration ──────────────────────────────────────────
+
+/**
+ * Temporarily start the keyoku binary so migration can call the API.
+ * Returns a cleanup function to kill the process afterward.
+ */
+async function startKeyokuForMigration(): Promise<() => void> {
+  const { spawn } = await import('node:child_process');
+  const { randomBytes } = await import('node:crypto');
+
+  // Check if already running
+  if (await waitForHealthy('http://localhost:18900', 2000, 500)) {
+    info('Keyoku already running');
+    return () => {}; // no-op cleanup
+  }
+
+  const binary = findKeyokuBinary();
+  if (!binary) {
+    warn('Keyoku binary not found — migration will be skipped');
+    return () => {};
+  }
+
+  const keyokuEnv = loadKeyokuEnv();
+  const env = { ...keyokuEnv, ...process.env };
+
+  if (!env.KEYOKU_SESSION_TOKEN) {
+    env.KEYOKU_SESSION_TOKEN = randomBytes(16).toString('hex');
+  }
+  process.env.KEYOKU_SESSION_TOKEN = env.KEYOKU_SESSION_TOKEN;
+
+  if (!env.KEYOKU_DB_PATH) {
+    const dbDir = join(HOME, '.keyoku', 'data');
+    mkdirSync(dbDir, { recursive: true });
+    env.KEYOKU_DB_PATH = join(dbDir, 'keyoku.db');
+  }
+
+  info('Starting keyoku for migration...');
+  const proc = spawn(binary, [], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: false,
+    env,
+  });
+
+  // Suppress output during migration
+  proc.stdout?.resume();
+  proc.stderr?.resume();
+
+  const healthy = await waitForHealthy('http://localhost:18900', 10000, 500);
+  if (healthy) {
+    info('Keyoku ready for migration');
+  } else {
+    warn('Keyoku health check timed out — migration may fail');
+  }
+
+  return () => {
+    try {
+      proc.kill('SIGTERM');
+    } catch {
+      // Process already exited
+    }
+  };
+}
+
 // ── Health Check ─────────────────────────────────────────────────────────
 
 /**
@@ -842,20 +923,22 @@ export async function init(): Promise<void> {
   stepHeader('Install Skill Guide');
   installSkill();
 
-  // Step 8b: HEARTBEAT.md
-  installHeartbeatMd();
+  // Step 8b: HEARTBEAT.md (extract user rules before writing keyoku section)
+  const heartbeatRules = installHeartbeatMd();
 
   // Step 9: Migration
   const memoryMdPath = join(HOME, '.openclaw', 'MEMORY.md');
   const hasMemoryMd = existsSync(memoryMdPath);
   const vectorDbs = discoverVectorDbs(OPENCLAW_MEMORY_DIR);
   const hasVectorStores = vectorDbs.length > 0;
+  const hasHeartbeatRules = heartbeatRules.length > 0;
 
-  if (hasMemoryMd || hasVectorStores) {
+  if (hasMemoryMd || hasVectorStores || hasHeartbeatRules) {
     stepHeader('Migrate Memories');
 
     if (hasMemoryMd) info('Found MEMORY.md');
     if (hasVectorStores) info(`Found ${vectorDbs.length} vector store(s)`);
+    if (hasHeartbeatRules) info(`Found ${heartbeatRules.length} heartbeat rule(s)`);
 
     const migrate = await choose('Migrate existing memories into Keyoku?', [
       { label: 'Yes', value: 'yes', desc: 'import everything now' },
@@ -863,44 +946,64 @@ export async function init(): Promise<void> {
     ]);
 
     if (migrate === 'yes') {
-      info('Starting migration...');
+      // Start keyoku temporarily for migration
+      const cleanup = await startKeyokuForMigration();
 
-      const client = new KeyokuClient({
-        baseUrl: 'http://localhost:18900',
-        token: process.env.KEYOKU_SESSION_TOKEN,
-        timeout: 60000,
-      });
-      const entityId = 'default';
+      try {
+        const client = new KeyokuClient({
+          baseUrl: 'http://localhost:18900',
+          token: process.env.KEYOKU_SESSION_TOKEN,
+          timeout: 60000,
+        });
+        const entityId = 'default';
 
-      // Migrate markdown files
-      if (hasMemoryMd) {
-        try {
-          const mdResult = await importMemoryFiles({
-            client,
-            entityId,
-            workspaceDir: join(HOME, '.openclaw'),
-            logger: console,
-          });
-          success(`Markdown: ${mdResult.imported} imported, ${mdResult.skipped} skipped`);
-        } catch (err) {
-          warn(`Markdown migration failed: ${String(err)}`);
-          log('Make sure Keyoku is running (it auto-starts when OpenClaw loads the plugin)');
+        // Migrate markdown files
+        if (hasMemoryMd) {
+          try {
+            const mdResult = await importMemoryFiles({
+              client,
+              entityId,
+              workspaceDir: join(HOME, '.openclaw'),
+              logger: console,
+            });
+            success(`Markdown: ${mdResult.imported} imported, ${mdResult.skipped} skipped`);
+          } catch (err) {
+            warn(`Markdown migration failed: ${String(err)}`);
+          }
         }
-      }
 
-      // Migrate vector stores
-      if (hasVectorStores) {
-        try {
-          const vsResult = await migrateAllVectorStores({
-            client,
-            entityId,
-            memoryDir: OPENCLAW_MEMORY_DIR,
-            logger: console,
-          });
-          success(`Vector stores: ${vsResult.imported} imported, ${vsResult.skipped} skipped`);
-        } catch (err) {
-          warn(`Vector store migration failed: ${String(err)}`);
+        // Migrate vector stores
+        if (hasVectorStores) {
+          try {
+            const vsResult = await migrateAllVectorStores({
+              client,
+              entityId,
+              memoryDir: OPENCLAW_MEMORY_DIR,
+              logger: console,
+            });
+            success(`Vector stores: ${vsResult.imported} imported, ${vsResult.skipped} skipped`);
+          } catch (err) {
+            warn(`Vector store migration failed: ${String(err)}`);
+          }
         }
+
+        // Migrate heartbeat rules (preferences, rules, scheduled tasks)
+        if (hasHeartbeatRules) {
+          try {
+            const hbResult = await migrateHeartbeatRules({
+              client,
+              entityId,
+              agentId: 'default',
+              rules: heartbeatRules,
+              logger: console,
+            });
+            success(`Heartbeat: ${hbResult.preferences} preferences, ${hbResult.rules} rules, ${hbResult.schedules} schedules`);
+          } catch (err) {
+            warn(`Heartbeat migration failed: ${String(err)}`);
+          }
+        }
+      } finally {
+        cleanup();
       }
     } else {
       log('Skipping — you can re-run init later to migrate');

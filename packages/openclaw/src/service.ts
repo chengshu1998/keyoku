@@ -18,7 +18,7 @@ async function isKeyokuRunning(url: string): Promise<boolean> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 2000);
-    const res = await fetch(`${url}/health`, { signal: controller.signal });
+    const res = await fetch(`${url}/api/v1/health`, { signal: controller.signal });
     clearTimeout(timer);
     return res.ok;
   } catch {
@@ -29,7 +29,7 @@ async function isKeyokuRunning(url: string): Promise<boolean> {
 /**
  * Wait for Keyoku to become healthy, polling every interval up to a timeout.
  */
-async function waitForHealthy(url: string, timeoutMs = 5000, intervalMs = 500): Promise<boolean> {
+export async function waitForHealthy(url: string, timeoutMs = 5000, intervalMs = 500): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (await isKeyokuRunning(url)) return true;
@@ -41,7 +41,7 @@ async function waitForHealthy(url: string, timeoutMs = 5000, intervalMs = 500): 
 /**
  * Find keyoku binary on disk or PATH.
  */
-function findKeyokuBinary(): string | null {
+export function findKeyokuBinary(): string | null {
   const home = process.env.HOME ?? '';
   const candidates = [
     resolve(home, '.keyoku', 'bin', 'keyoku'),
@@ -69,7 +69,7 @@ function ensureDataDir(): string {
  * Load key=value pairs from ~/.keyoku/.env if it exists.
  * These are written by `npx @keyoku/openclaw init` during setup.
  */
-function loadKeyokuEnv(): Record<string, string> {
+export function loadKeyokuEnv(): Record<string, string> {
   const envPath = resolve(process.env.HOME ?? '', '.keyoku', '.env');
   if (!existsSync(envPath)) return {};
 
