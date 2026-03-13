@@ -1,6 +1,6 @@
 {
   "name": "@keyoku/memory",
-  "version": "1.2.13",
+  "version": "1.2.14",
   "description": "Keyoku memory engine HTTP client",
   "type": "module",
   "main": "dist/index.js",
@@ -9,7 +9,7 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@keyoku/types": "1.2.13"
+    "@keyoku/types": "1.2.14"
   },
   "license": "MIT",
   "engines": {
