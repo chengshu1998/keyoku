@@ -453,10 +453,14 @@ Everything works out of the box with defaults. Customize only what you need in `
 | `heartbeat` | `true` | Enable the heartbeat system (proactive signals) |
 | `incrementalCapture` | `true` | Capture in real-time per message, not just at session end |
 | `topK` | `5` | How many memories to inject per prompt (higher = more context) |
-| `entityId` | agent name | Isolate memories per user — each user gets their own memory space |
-| `agentId` | agent name | Identify which agent stored a memory (useful for multi-agent setups) |
+| `entityId` | `'default'` fallback when unset | Memory namespace key used for recall/capture/scheduling in the OpenClaw plugin |
+| `agentId` | `'default'` fallback when unset | Identify which agent stored a memory (useful for multi-agent attribution) |
 | `autonomy` | `'suggest'` | How the agent responds to heartbeat signals (see [Autonomy Levels](#autonomy-levels)) |
 | `keyokuUrl` | `localhost:18900` | Where keyoku-engine is running |
+
+> ⚠️ **Shared-workspace note:** with static/default `entityId`, memories are shared within that namespace. For Slack/Discord/Teams org deployments, use explicit per-user or per-channel namespace strategy at deployment level until dynamic scoping lands.
+>
+> Draft design: [`packages/openclaw/docs/entity-scoping-draft.md`](packages/openclaw/docs/entity-scoping-draft.md)
 
 ---
 
