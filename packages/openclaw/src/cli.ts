@@ -8,7 +8,11 @@ import type { KeyokuClient } from '@keyoku/memory';
 import type { PluginApi, PluginLogger } from './types.js';
 import { formatMemoryList } from './context.js';
 import { importMemoryFiles } from './migration.js';
-import { migrateVectorStore, migrateAllVectorStores, discoverVectorDbs } from './migrate-vector-store.js';
+import {
+  migrateVectorStore,
+  migrateAllVectorStores,
+  discoverVectorDbs,
+} from './migrate-vector-store.js';
 
 // Minimal Commander-like interface for chaining
 interface CommandChain {

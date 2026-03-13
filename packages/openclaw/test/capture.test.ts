@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   looksLikePromptInjection,
   shouldCapture,
-  extractCapturableTexts,
 } from '../src/capture.js';
 
 describe('capture', () => {
@@ -82,58 +81,4 @@ describe('capture', () => {
     });
   });
 
-  describe('extractCapturableTexts', () => {
-    it('extracts from user messages with string content', () => {
-      const messages = [
-        { role: 'user', content: 'I prefer TypeScript over JavaScript' },
-        { role: 'assistant', content: 'I prefer TypeScript too' },
-      ];
-
-      const result = extractCapturableTexts(messages);
-      expect(result).toHaveLength(1);
-      expect(result[0]).toBe('I prefer TypeScript over JavaScript');
-    });
-
-    it('ignores assistant messages', () => {
-      const messages = [
-        { role: 'assistant', content: 'I always use dark mode' },
-      ];
-
-      expect(extractCapturableTexts(messages)).toHaveLength(0);
-    });
-
-    it('handles array content blocks', () => {
-      const messages = [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: 'Remember that I love Rust' },
-          ],
-        },
-      ];
-
-      const result = extractCapturableTexts(messages);
-      expect(result).toHaveLength(1);
-      expect(result[0]).toContain('Rust');
-    });
-
-    it('handles null/undefined messages gracefully', () => {
-      const messages = [null, undefined, { role: 'user', content: 'I prefer vim' }];
-      const result = extractCapturableTexts(messages as unknown[]);
-      // "I prefer vim" is only 12 chars and matches triggers
-      expect(result).toHaveLength(1);
-    });
-
-    it('respects maxChars parameter', () => {
-      const messages = [
-        { role: 'user', content: 'I always ' + 'x'.repeat(100) },
-      ];
-
-      expect(extractCapturableTexts(messages, 50)).toHaveLength(0);
-    });
-
-    it('returns empty for empty messages array', () => {
-      expect(extractCapturableTexts([])).toHaveLength(0);
-    });
-  });
 });

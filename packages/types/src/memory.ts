@@ -112,9 +112,9 @@ export interface HeartbeatContextResult {
   analysis?: HeartbeatAnalysis;
 
   // Decision metadata
-  decision_reason?: string;      // "act", "nudge", "suppress_cooldown", "suppress_stale", "suppress_quiet", "suppress_llm", "no_signals"
+  decision_reason?: string; // "act", "nudge", "suppress_cooldown", "suppress_stale", "suppress_quiet", "suppress_llm", "no_signals"
   highest_urgency_tier?: string; // "immediate", "elevated", "normal", "low"
-  nudge_context?: string;        // memory content for nudge
+  nudge_context?: string; // memory content for nudge
 
   // Extended signals
   goal_progress?: GoalProgress[];
@@ -128,8 +128,8 @@ export interface HeartbeatContextResult {
   in_conversation?: boolean;
 
   // Time and escalation awareness
-  time_period?: string;       // "morning", "working", "evening", "late_night", "quiet"
-  escalation_level?: number;  // 1=casual, 2=direct, 3=offer help, 4+=dropped
+  time_period?: string; // "morning", "working", "evening", "late_night", "quiet"
+  escalation_level?: number; // 1=casual, 2=direct, 3=offer help, 4+=dropped
 
   // v2: Intelligence metadata
   response_rate?: number;

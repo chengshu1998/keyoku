@@ -29,7 +29,11 @@ async function isKeyokuRunning(url: string): Promise<boolean> {
 /**
  * Wait for Keyoku to become healthy, polling every interval up to a timeout.
  */
-export async function waitForHealthy(url: string, timeoutMs = 5000, intervalMs = 500): Promise<boolean> {
+export async function waitForHealthy(
+  url: string,
+  timeoutMs = 5000,
+  intervalMs = 500,
+): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (await isKeyokuRunning(url)) return true;
@@ -98,7 +102,9 @@ export function registerService(api: PluginApi, keyokuUrl: string): void {
 
       const binary = findKeyokuBinary();
       if (!binary) {
-        api.logger.warn('keyoku: Keyoku binary not found — memory features require Keyoku to be running');
+        api.logger.warn(
+          'keyoku: Keyoku binary not found — memory features require Keyoku to be running',
+        );
         return;
       }
 
@@ -150,7 +156,9 @@ export function registerService(api: PluginApi, keyokuUrl: string): void {
         if (await waitForHealthy(keyokuUrl)) {
           api.logger.info('keyoku: Keyoku started successfully');
         } else {
-          api.logger.warn('keyoku: Keyoku started but health check failed — it may still be initializing');
+          api.logger.warn(
+            'keyoku: Keyoku started but health check failed — it may still be initializing',
+          );
         }
       } catch (err) {
         api.logger.warn(`keyoku: Could not start Keyoku: ${String(err)}`);

@@ -15,7 +15,15 @@
  * 10. Health check to verify everything works
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync, chmodSync, createWriteStream, cpSync } from 'node:fs';
+import {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  chmodSync,
+  createWriteStream,
+  cpSync,
+} from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
@@ -23,7 +31,11 @@ import { pipeline } from 'node:stream/promises';
 import { KeyokuClient } from '@keyoku/memory';
 import { importMemoryFiles } from './migration.js';
 import { migrateAllVectorStores, discoverVectorDbs } from './migrate-vector-store.js';
-import { extractHeartbeatRules, migrateHeartbeatRules, type HeartbeatRule } from './heartbeat-migration.js';
+import {
+  extractHeartbeatRules,
+  migrateHeartbeatRules,
+  type HeartbeatRule,
+} from './heartbeat-migration.js';
 import { findKeyokuBinary, loadKeyokuEnv, waitForHealthy } from './service.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -36,10 +48,21 @@ const OPENCLAW_MEMORY_DIR = join(HOME, '.openclaw', 'memory');
 const OPENCLAW_EXTENSIONS_DIR = join(HOME, '.openclaw', 'extensions');
 const PLUGIN_INSTALL_DIR = join(OPENCLAW_EXTENSIONS_DIR, 'keyoku-memory');
 
+interface AgentHeartbeatConfig {
+  every?: string;
+  target?: string;
+  to?: string;
+}
+
 interface OpenClawConfig {
   plugins?: {
     entries?: Record<string, { enabled: boolean; config?: Record<string, unknown> }>;
     slots?: Record<string, string>;
+  };
+  agents?: {
+    defaults?: {
+      heartbeat?: AgentHeartbeatConfig;
+    };
   };
   [key: string]: unknown;
 }
@@ -51,15 +74,15 @@ const c = {
   bold: '\x1b[1m',
   dim: '\x1b[2m',
   // Indigo/purple brand palette
-  indigo: '\x1b[38;2;99;102;241m',    // #6366f1
-  purple: '\x1b[38;2;167;139;250m',   // #a78bfa
-  lilac: '\x1b[38;2;196;181;253m',    // #c4b5fd
-  green: '\x1b[38;2;34;197;94m',      // #22c55e
-  yellow: '\x1b[38;2;250;204;21m',    // #facc15
-  red: '\x1b[38;2;239;68;68m',        // #ef4444
-  gray: '\x1b[38;2;148;163;184m',     // #94a3b8
-  white: '\x1b[38;2;241;245;249m',    // #f1f5f9
-  cyan: '\x1b[38;2;34;211;238m',      // #22d3ee
+  indigo: '\x1b[38;2;99;102;241m', // #6366f1
+  purple: '\x1b[38;2;167;139;250m', // #a78bfa
+  lilac: '\x1b[38;2;196;181;253m', // #c4b5fd
+  green: '\x1b[38;2;34;197;94m', // #22c55e
+  yellow: '\x1b[38;2;250;204;21m', // #facc15
+  red: '\x1b[38;2;239;68;68m', // #ef4444
+  gray: '\x1b[38;2;148;163;184m', // #94a3b8
+  white: '\x1b[38;2;241;245;249m', // #f1f5f9
+  cyan: '\x1b[38;2;34;211;238m', // #22d3ee
 };
 
 // ── Output Helpers ───────────────────────────────────────────────────────
@@ -70,7 +93,9 @@ const totalSteps = 11;
 function stepHeader(label: string): void {
   currentStep++;
   console.log('');
-  console.log(`  ${c.indigo}${c.bold}[${currentStep}/${totalSteps}]${c.reset} ${c.white}${c.bold}${label}${c.reset}`);
+  console.log(
+    `  ${c.indigo}${c.bold}[${currentStep}/${totalSteps}]${c.reset} ${c.white}${c.bold}${label}${c.reset}`,
+  );
   console.log(`  ${c.dim}${'─'.repeat(50)}${c.reset}`);
 }
 
@@ -239,7 +264,7 @@ async function downloadBinary(): Promise<boolean> {
       return false;
     }
 
-    const release = await releaseRes.json() as {
+    const release = (await releaseRes.json()) as {
       tag_name: string;
       assets: Array<{ name: string; browser_download_url: string }>;
     };
@@ -351,8 +376,8 @@ function installPluginFiles(): void {
   // Also handles npm workspace hoisting where deps are in ../../node_modules.
   const siblingDeps = ['@keyoku/memory', '@keyoku/types', '@sinclair/typebox'];
   const searchPaths = [
-    join(packageRoot, '..', '..'),      // npx flat: node_modules/@keyoku/openclaw/../.. = node_modules/
-    join(packageRoot, '..'),            // fallback: unscoped package
+    join(packageRoot, '..', '..'), // npx flat: node_modules/@keyoku/openclaw/../.. = node_modules/
+    join(packageRoot, '..'), // fallback: unscoped package
     join(packageRoot, '..', '..', 'node_modules'), // workspace hoisted
   ];
   for (const dep of siblingDeps) {
@@ -488,7 +513,9 @@ Do not repeat old tasks from prior conversations. Only act on what the signals s
     // Preserve existing user content, append keyoku section
     const content = existing.trimEnd() + `\n\n---\n\n${KEYOKU_SECTION}\n`;
     writeFileSync(heartbeatPath, content, 'utf-8');
-    success(`HEARTBEAT.md updated (preserved existing content) → ${c.dim}~/.openclaw/workspace/${c.reset}`);
+    success(
+      `HEARTBEAT.md updated (preserved existing content) → ${c.dim}~/.openclaw/workspace/${c.reset}`,
+    );
     return extractedRules;
   }
 
@@ -519,7 +546,9 @@ async function setupLlmProvider(): Promise<void> {
   const currentExtraction = process.env.KEYOKU_EXTRACTION_PROVIDER;
   const currentEmbedding = process.env.KEYOKU_EMBEDDING_PROVIDER;
   if (currentExtraction && currentEmbedding) {
-    info(`Current: ${c.dim}${currentExtraction}/${process.env.KEYOKU_EXTRACTION_MODEL || 'default'} + ${currentEmbedding}/${process.env.KEYOKU_EMBEDDING_MODEL || 'default'}${c.reset}`);
+    info(
+      `Current: ${c.dim}${currentExtraction}/${process.env.KEYOKU_EXTRACTION_MODEL || 'default'} + ${currentEmbedding}/${process.env.KEYOKU_EMBEDDING_MODEL || 'default'}${c.reset}`,
+    );
   }
 
   // Show detected API keys
@@ -542,7 +571,7 @@ async function setupLlmProvider(): Promise<void> {
   ]);
 
   if (embeddingProvider === 'gemini') {
-    appendToEnvFile('KEYOKU_EMBEDDING_PROVIDER', 'gemini');  // engine uses "gemini"
+    appendToEnvFile('KEYOKU_EMBEDDING_PROVIDER', 'gemini'); // engine uses "gemini"
     appendToEnvFile('KEYOKU_EMBEDDING_MODEL', 'gemini-embedding-001');
   } else {
     appendToEnvFile('KEYOKU_EMBEDDING_PROVIDER', 'openai');
@@ -554,7 +583,11 @@ async function setupLlmProvider(): Promise<void> {
   const extractionProvider = await choose('Extraction provider?', [
     { label: 'Gemini (recommended)', value: 'gemini', desc: 'Best price-to-quality ratio' },
     { label: 'OpenAI', value: 'openai', desc: 'Reliable, widely supported' },
-    { label: 'Anthropic', value: 'anthropic', desc: 'Highest quality, no embeddings (uses your embedding provider)' },
+    {
+      label: 'Anthropic',
+      value: 'anthropic',
+      desc: 'Highest quality, no embeddings (uses your embedding provider)',
+    },
   ]);
 
   appendToEnvFile('KEYOKU_EXTRACTION_PROVIDER', extractionProvider);
@@ -564,18 +597,32 @@ async function setupLlmProvider(): Promise<void> {
 
   if (extractionProvider === 'gemini') {
     extractionModel = await choose('Extraction model?', [
-      { label: 'gemini-3.1-flash-lite-preview (recommended)', value: 'gemini-3.1-flash-lite-preview', desc: 'Cheapest and fastest, near-perfect quality' },
-      { label: 'gemini-2.5-flash', value: 'gemini-2.5-flash', desc: 'Thinking model, highest accuracy, slower' },
+      {
+        label: 'gemini-3.1-flash-lite-preview (recommended)',
+        value: 'gemini-3.1-flash-lite-preview',
+        desc: 'Cheapest and fastest, near-perfect quality',
+      },
+      {
+        label: 'gemini-2.5-flash',
+        value: 'gemini-2.5-flash',
+        desc: 'Thinking model, highest accuracy, slower',
+      },
     ]);
   } else if (extractionProvider === 'openai') {
     extractionModel = await choose('Extraction model?', [
       { label: 'gpt-4.1-mini', value: 'gpt-4.1-mini', desc: 'Balanced speed and quality' },
-      { label: 'gpt-4.1-nano', value: 'gpt-4.1-nano', desc: 'Cheapest, slightly less reliable on complex schemas' },
+      {
+        label: 'gpt-4.1-nano',
+        value: 'gpt-4.1-nano',
+        desc: 'Cheapest, slightly less reliable on complex schemas',
+      },
     ]);
   } else {
     // Anthropic — single model
     extractionModel = 'claude-haiku-4-5-20251001';
-    info(`Extraction model: ${c.bold}claude-haiku-4-5-20251001${c.reset}  ${c.dim}Fast, top-tier quality${c.reset}`);
+    info(
+      `Extraction model: ${c.bold}claude-haiku-4-5-20251001${c.reset}  ${c.dim}Fast, top-tier quality${c.reset}`,
+    );
   }
 
   appendToEnvFile('KEYOKU_EXTRACTION_MODEL', extractionModel);
@@ -689,11 +736,15 @@ const COMMON_TIMEZONES = [
  * Set up autonomy level — controls how aggressively heartbeat acts on signals.
  */
 async function setupAutonomy(config: OpenClawConfig): Promise<void> {
-  const level = await choose('Autonomy level?', [
-    { label: 'observe', value: 'observe', desc: 'note signals silently, only act when asked' },
-    { label: 'suggest', value: 'suggest', desc: 'mention important signals in conversation' },
-    { label: 'act', value: 'act', desc: 'proactively execute actions (reminders, follow-ups)' },
-  ], 1);
+  const level = await choose(
+    'Autonomy level?',
+    [
+      { label: 'observe', value: 'observe', desc: 'note signals silently, only act when asked' },
+      { label: 'suggest', value: 'suggest', desc: 'mention important signals in conversation' },
+      { label: 'act', value: 'act', desc: 'proactively execute actions (reminders, follow-ups)' },
+    ],
+    1,
+  );
 
   // Save to plugin config in openclaw.json
   const entry = config.plugins?.entries?.['keyoku-memory'];
@@ -734,7 +785,7 @@ async function setupTimezoneAndQuietHours(): Promise<void> {
 
   const tzAnswer = await prompt(`Timezone? [1-${tzOptions.length}]:`);
   const tzIdx = parseInt(tzAnswer, 10) - 1;
-  const timezone = (tzIdx >= 0 && tzIdx < tzOptions.length) ? tzOptions[tzIdx].value : detected;
+  const timezone = tzIdx >= 0 && tzIdx < tzOptions.length ? tzOptions[tzIdx].value : detected;
 
   appendToEnvFile('KEYOKU_QUIET_HOURS_TIMEZONE', timezone);
   success(`Timezone → ${c.bold}${timezone}${c.reset}`);
@@ -769,7 +820,9 @@ async function setupTimezoneAndQuietHours(): Promise<void> {
     appendToEnvFile('KEYOKU_QUIET_HOUR_END', String(end));
   }
 
-  success(`Quiet hours → ${c.bold}${isNaN(start) ? 23 : start}:00 – ${isNaN(end) ? 7 : end}:00${c.reset} (${timezone})`);
+  success(
+    `Quiet hours → ${c.bold}${isNaN(start) ? 23 : start}:00 – ${isNaN(end) ? 7 : end}:00${c.reset} (${timezone})`,
+  );
 }
 
 // ── Heartbeat Delivery Setup ─────────────────────────────────────────────
@@ -778,8 +831,10 @@ async function setupTimezoneAndQuietHours(): Promise<void> {
  * Platform-specific instructions for finding group chat IDs.
  */
 const GROUP_ID_HINTS: Record<string, string> = {
-  telegram: 'Add @RawDataBot to your group — it replies with the chat ID (a negative number like -4970078838)',
-  discord: 'Right-click your channel → Copy Channel ID (enable Developer Mode in Settings → Advanced first)',
+  telegram:
+    'Add @RawDataBot to your group — it replies with the chat ID (a negative number like -4970078838)',
+  discord:
+    'Right-click your channel → Copy Channel ID (enable Developer Mode in Settings → Advanced first)',
   slack: 'Open channel details → scroll to the bottom → Channel ID',
   whatsapp: 'Group JID (shown in WhatsApp Web URL or API logs)',
   googlechat: 'Space ID from the URL (spaces/<id>)',
@@ -796,13 +851,11 @@ const GROUP_ID_HINTS: Record<string, string> = {
 async function setupHeartbeatDelivery(config: OpenClawConfig): Promise<void> {
   // Detect configured channels from openclaw.json
   const channels = config.channels as Record<string, unknown> | undefined;
-  const configuredChannels = channels
-    ? Object.keys(channels).filter((k) => k !== 'defaults')
-    : [];
+  const configuredChannels = channels ? Object.keys(channels).filter((k) => k !== 'defaults') : [];
 
   if (configuredChannels.length === 0) {
     log('No messaging channels configured in openclaw.json');
-    log('Heartbeat will run but messages won\'t be delivered externally');
+    log("Heartbeat will run but messages won't be delivered externally");
     log(`${c.dim}Configure a channel (telegram, discord, etc.) and re-run init${c.reset}`);
     return;
   }
@@ -821,8 +874,8 @@ async function setupHeartbeatDelivery(config: OpenClawConfig): Promise<void> {
   if (enableDelivery === 'no') {
     // Write target: "none" explicitly so it's clear in config
     ensureAgentsDefaults(config);
-    (config as any).agents.defaults.heartbeat = {
-      ...((config as any).agents?.defaults?.heartbeat || {}),
+    config.agents!.defaults!.heartbeat = {
+      ...config.agents!.defaults!.heartbeat,
       every: '30m',
       target: 'none',
     };
@@ -841,7 +894,10 @@ async function setupHeartbeatDelivery(config: OpenClawConfig): Promise<void> {
       label: ch.charAt(0).toUpperCase() + ch.slice(1),
       value: ch,
     }));
-    targetChannel = await choose('Which channel should receive heartbeat messages?', channelOptions);
+    targetChannel = await choose(
+      'Which channel should receive heartbeat messages?',
+      channelOptions,
+    );
   }
 
   // Get group chat ID
@@ -859,8 +915,8 @@ async function setupHeartbeatDelivery(config: OpenClawConfig): Promise<void> {
   if (!groupId) {
     warn('No group ID provided — heartbeat delivery disabled');
     ensureAgentsDefaults(config);
-    (config as any).agents.defaults.heartbeat = {
-      ...((config as any).agents?.defaults?.heartbeat || {}),
+    config.agents!.defaults!.heartbeat = {
+      ...config.agents!.defaults!.heartbeat,
       every: '30m',
       target: 'none',
     };
@@ -878,24 +934,26 @@ async function setupHeartbeatDelivery(config: OpenClawConfig): Promise<void> {
 
   // Write to openclaw.json
   ensureAgentsDefaults(config);
-  (config as any).agents.defaults.heartbeat = {
-    ...((config as any).agents?.defaults?.heartbeat || {}),
+  config.agents!.defaults!.heartbeat = {
+    ...config.agents!.defaults!.heartbeat,
     every: interval,
     target: targetChannel,
     to: groupId,
   };
   writeOpenClawConfig(config);
 
-  success(`Heartbeat → ${c.bold}${targetChannel}${c.reset} (group: ${c.dim}${groupId}${c.reset}, every ${interval})`);
+  success(
+    `Heartbeat → ${c.bold}${targetChannel}${c.reset} (group: ${c.dim}${groupId}${c.reset}, every ${interval})`,
+  );
 }
 
 /**
  * Ensure agents.defaults exists in config.
  */
 function ensureAgentsDefaults(config: OpenClawConfig): void {
-  if (!config.agents) (config as any).agents = {};
-  if (!(config as any).agents.defaults) (config as any).agents.defaults = {};
-  if (!(config as any).agents.defaults.heartbeat) (config as any).agents.defaults.heartbeat = {};
+  if (!config.agents) config.agents = {};
+  if (!config.agents.defaults) config.agents.defaults = {};
+  if (!config.agents.defaults.heartbeat) config.agents.defaults.heartbeat = {};
 }
 
 // ── Start Keyoku for Migration ──────────────────────────────────────────
@@ -1000,7 +1058,9 @@ export async function init(): Promise<void> {
   console.log(`  ${c.indigo}${c.bold}  █▄▀   █▀▀   █ █   █  █  █▀▄   █  █${c.reset}`);
   console.log(`  ${c.indigo}${c.bold}  █  █  █▄▄    █    █▄▄█  █  █  █▄▄█${c.reset}`);
   console.log('');
-  console.log(`  ${c.gray}Memory engine for OpenClaw${c.reset}  ${c.dim}v${getVersion()}${c.reset}`);
+  console.log(
+    `  ${c.gray}Memory engine for OpenClaw${c.reset}  ${c.dim}v${getVersion()}${c.reset}`,
+  );
   console.log(`  ${c.indigo}${'━'.repeat(52)}${c.reset}`);
 
   // Step 1: Detect OpenClaw
@@ -1170,7 +1230,9 @@ export async function init(): Promise<void> {
               rules: heartbeatRules,
               logger: console,
             });
-            success(`Heartbeat: ${hbResult.preferences} preferences, ${hbResult.rules} rules, ${hbResult.schedules} schedules`);
+            success(
+              `Heartbeat: ${hbResult.preferences} preferences, ${hbResult.rules} rules, ${hbResult.schedules} schedules`,
+            );
           } catch (err) {
             warn(`Heartbeat migration failed: ${String(err)}`);
           }
@@ -1204,18 +1266,26 @@ export async function init(): Promise<void> {
   console.log(`  ${c.white}Next steps:${c.reset}`);
   console.log(`  ${c.gray}1.${c.reset} Restart the gateway to load the plugin`);
   if (inContainer) {
-    console.log(`     ${c.bold}docker compose restart${c.reset}  ${c.dim}(from the host)${c.reset}`);
+    console.log(
+      `     ${c.bold}docker compose restart${c.reset}  ${c.dim}(from the host)${c.reset}`,
+    );
   } else {
     console.log(`     ${c.bold}openclaw gateway restart${c.reset}`);
   }
   console.log('');
   console.log(`  ${c.gray}2.${c.reset} Your agent now has persistent memory + heartbeat awareness`);
-  console.log(`     ${c.dim}openclaw memory status${c.reset}    ${c.dim}check memory index status${c.reset}`);
-  console.log(`     ${c.dim}openclaw memory search${c.reset}    ${c.dim}search stored memories${c.reset}`);
+  console.log(
+    `     ${c.dim}openclaw memory status${c.reset}    ${c.dim}check memory index status${c.reset}`,
+  );
+  console.log(
+    `     ${c.dim}openclaw memory search${c.reset}    ${c.dim}search stored memories${c.reset}`,
+  );
   console.log('');
   console.log(`  ${c.gray}3.${c.reset} ${c.yellow}Heartbeat requires a group chat${c.reset}`);
   console.log(`     ${c.dim}OpenClaw delivers heartbeats to group chats only (not DMs).${c.reset}`);
-  console.log(`     ${c.dim}Add your bot to a Telegram/Discord/WhatsApp group to receive proactive check-ins.${c.reset}`);
+  console.log(
+    `     ${c.dim}Add your bot to a Telegram/Discord/WhatsApp group to receive proactive check-ins.${c.reset}`,
+  );
   console.log('');
   console.log(`  ${c.indigo}${'━'.repeat(52)}${c.reset}`);
   console.log('');

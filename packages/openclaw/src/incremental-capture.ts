@@ -34,23 +34,31 @@ export function registerIncrementalCapture(
   let pendingUserPrompt: string | null = null;
 
   // Step 1: Stash user prompt (no API call yet)
-  api.on('before_prompt_build', async (event: unknown) => {
-    const ev = event as { prompt?: string };
-    if (!ev.prompt || ev.prompt.length < 10) return;
+  api.on(
+    'before_prompt_build',
+    async (event: unknown) => {
+      const ev = event as { prompt?: string };
+      if (!ev.prompt || ev.prompt.length < 10) return;
 
-    // Don't stash heartbeat prompts or injected blocks
-    if (ev.prompt.includes('HEARTBEAT')) return;
-    if (ev.prompt.includes('<your-memories>') || ev.prompt.includes('<heartbeat-signals>')) return;
-    if (ev.prompt.length > config.captureMaxChars) return;
-    if (looksLikePromptInjection(ev.prompt)) return;
+      // Don't stash heartbeat prompts or injected blocks
+      if (ev.prompt.includes('HEARTBEAT')) return;
+      if (ev.prompt.includes('<your-memories>') || ev.prompt.includes('<heartbeat-signals>'))
+        return;
+      if (ev.prompt.length > config.captureMaxChars) return;
+      if (looksLikePromptInjection(ev.prompt)) return;
 
-    pendingUserPrompt = ev.prompt;
-  }, { priority: -10 }); // Low priority — runs after auto-recall
+      pendingUserPrompt = ev.prompt;
+    },
+    { priority: -10 },
+  ); // Low priority — runs after auto-recall
 
   // Step 2: On agent_end, extract the last assistant response and pair with stashed prompt
   api.on('agent_end', async (event: unknown) => {
     const ev = event as {
-      messages?: Array<{ role?: string; content?: string | Array<{ type?: string; text?: string }> }>;
+      messages?: Array<{
+        role?: string;
+        content?: string | Array<{ type?: string; text?: string }>;
+      }>;
       output?: string;
       success?: boolean;
     };
@@ -85,7 +93,11 @@ export function registerIncrementalCapture(
 
     // Skip heartbeat/memory noise
     if (assistantContent === 'HEARTBEAT_OK' || assistantContent === 'NO_REPLY') return;
-    if (assistantContent.includes('<heartbeat-signals>') || assistantContent.includes('<your-memories>')) return;
+    if (
+      assistantContent.includes('<heartbeat-signals>') ||
+      assistantContent.includes('<your-memories>')
+    )
+      return;
     if (looksLikePromptInjection(assistantContent)) return;
 
     // Build the exchange: user prompt + assistant response

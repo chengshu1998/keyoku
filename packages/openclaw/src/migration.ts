@@ -8,7 +8,7 @@
  */
 
 import { readFileSync, readdirSync, existsSync, statSync } from 'fs';
-import { join, basename } from 'path';
+import { join } from 'path';
 import type { KeyokuClient } from '@keyoku/memory';
 
 export interface ImportResult {

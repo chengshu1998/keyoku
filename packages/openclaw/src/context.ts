@@ -8,9 +8,7 @@ import type { SearchResult, HeartbeatContextResult, Memory } from '@keyoku/types
  * Escape potentially unsafe characters in memory text to prevent prompt injection.
  */
 export function escapeMemoryText(text: string): string {
-  return text
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  return text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 /**
@@ -35,7 +33,9 @@ export function formatHeartbeatContext(ctx: HeartbeatContextResult): string {
 
   // First-contact mode
   if (ctx.decision_reason === 'first_contact') {
-    lines.push('This is your first check-in with this user. You have very few memories about them.');
+    lines.push(
+      'This is your first check-in with this user. You have very few memories about them.',
+    );
     lines.push('Introduce yourself briefly and naturally.');
     return wrapSignals(lines);
   }
@@ -53,7 +53,12 @@ export function formatHeartbeatContext(ctx: HeartbeatContextResult): string {
   // LLM-analyzed signals
   if (ctx.analysis) {
     const a = ctx.analysis;
-    if (!ctx.should_act && !a.action_brief && !a.user_facing && (a.recommended_actions?.length ?? 0) === 0) {
+    if (
+      !ctx.should_act &&
+      !a.action_brief &&
+      !a.user_facing &&
+      (a.recommended_actions?.length ?? 0) === 0
+    ) {
       return '';
     }
 
@@ -105,13 +110,17 @@ export function formatHeartbeatContext(ctx: HeartbeatContextResult): string {
   if (ctx.goal_progress && ctx.goal_progress.length > 0) {
     for (const g of ctx.goal_progress) {
       const daysStr = g.days_left >= 0 ? `, ${Math.round(g.days_left)} days left` : '';
-      lines.push(`Goal: ${escapeMemoryText(g.plan.content)} — ${g.status} (${Math.round(g.progress * 100)}% done${daysStr})`);
+      lines.push(
+        `Goal: ${escapeMemoryText(g.plan.content)} — ${g.status} (${Math.round(g.progress * 100)}% done${daysStr})`,
+      );
     }
   }
 
   // Continuity
   if (ctx.continuity?.was_interrupted) {
-    lines.push(`They were working on something ${Math.round(ctx.continuity.session_age_hours)}h ago: ${escapeMemoryText(ctx.continuity.resume_suggestion)}`);
+    lines.push(
+      `They were working on something ${Math.round(ctx.continuity.session_age_hours)}h ago: ${escapeMemoryText(ctx.continuity.resume_suggestion)}`,
+    );
   }
 
   // Conflicts
@@ -176,9 +185,11 @@ function appendEscalation(lines: string[], ctx: HeartbeatContextResult): void {
     if (level === 2) {
       lines.push('You mentioned this topic before. Be more direct this time.');
     } else if (level === 3) {
-      lines.push('You\'ve brought this up twice already. Offer specific help or drop it.');
+      lines.push("You've brought this up twice already. Offer specific help or drop it.");
     } else if (level >= 4) {
-      lines.push('You\'ve mentioned this multiple times with no response. Drop it unless they bring it up.');
+      lines.push(
+        "You've mentioned this multiple times with no response. Drop it unless they bring it up.",
+      );
     }
   }
 }
@@ -198,11 +209,11 @@ function appendTimePeriod(lines: string[], ctx: HeartbeatContextResult): void {
   const period = ctx.time_period;
   if (period) {
     const toneMap: Record<string, string> = {
-      morning: 'It\'s morning. Be energetic and proactive.',
+      morning: "It's morning. Be energetic and proactive.",
       working: '',
-      evening: 'It\'s evening. Keep it brief.',
-      late_night: 'It\'s late. Only mention this if it\'s truly urgent.',
-      quiet: 'It\'s very late. This should be urgent to justify messaging.',
+      evening: "It's evening. Keep it brief.",
+      late_night: "It's late. Only mention this if it's truly urgent.",
+      quiet: "It's very late. This should be urgent to justify messaging.",
     };
     const tone = toneMap[period];
     if (tone) {
@@ -229,6 +240,9 @@ export function formatMemoryList(memories: Memory[]): string {
   if (!memories?.length) return 'No memories found.';
 
   return memories
-    .map((m, i) => `${i + 1}. [${m.type}] ${m.content.slice(0, 120)}${m.content.length > 120 ? '...' : ''}`)
+    .map(
+      (m, i) =>
+        `${i + 1}. [${m.type}] ${m.content.slice(0, 120)}${m.content.length > 120 ? '...' : ''}`,
+    )
     .join('\n');
 }

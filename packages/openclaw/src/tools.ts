@@ -10,7 +10,12 @@ import { Type } from '@sinclair/typebox';
 import type { KeyokuClient } from '@keyoku/memory';
 import type { PluginApi } from './types.js';
 
-export function registerTools(api: PluginApi, client: KeyokuClient, entityId: string, agentId: string): void {
+export function registerTools(
+  api: PluginApi,
+  client: KeyokuClient,
+  entityId: string,
+  agentId: string,
+): void {
   // memory_search — OpenClaw-standard search tool (replaces memory-core's built-in)
   api.registerTool(
     {
@@ -24,16 +29,28 @@ export function registerTools(api: PluginApi, client: KeyokuClient, entityId: st
         minScore: Type.Optional(Type.Number({ description: 'Minimum relevance score 0-1' })),
       }),
       async execute(_toolCallId, params) {
-        const { query, maxResults = 5, minScore = 0.1 } = params as {
+        const {
+          query,
+          maxResults = 5,
+          minScore = 0.1,
+        } = params as {
           query: string;
           maxResults?: number;
           minScore?: number;
         };
-        const results = await client.search(entityId, query, { limit: maxResults, min_score: minScore });
+        const results = await client.search(entityId, query, {
+          limit: maxResults,
+          min_score: minScore,
+        });
 
         if (results.length === 0) {
           return {
-            content: [{ type: 'text', text: JSON.stringify({ results: [], provider: 'memory', mode: 'semantic' }) }],
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({ results: [], provider: 'memory', mode: 'semantic' }),
+              },
+            ],
             details: { count: 0 },
           };
         }
@@ -50,7 +67,10 @@ export function registerTools(api: PluginApi, client: KeyokuClient, entityId: st
 
         return {
           content: [
-            { type: 'text', text: JSON.stringify({ results: mapped, provider: 'memory', mode: 'semantic' }) },
+            {
+              type: 'text',
+              text: JSON.stringify({ results: mapped, provider: 'memory', mode: 'semantic' }),
+            },
           ],
           details: { count: mapped.length },
         };
@@ -64,8 +84,7 @@ export function registerTools(api: PluginApi, client: KeyokuClient, entityId: st
     {
       name: 'memory_get',
       label: 'Memory Get',
-      description:
-        'Read a specific memory by its ID (mem:<id>) or search for a memory by keyword.',
+      description: 'Read a specific memory by its ID (mem:<id>) or search for a memory by keyword.',
       parameters: Type.Object({
         path: Type.String({ description: 'Memory path (mem:<id>) or keyword to search' }),
         from: Type.Optional(Type.Number({ description: 'Line offset (unused)' })),
@@ -79,11 +98,18 @@ export function registerTools(api: PluginApi, client: KeyokuClient, entityId: st
           try {
             const memory = await client.getMemory(id);
             return {
-              content: [{ type: 'text', text: JSON.stringify({ text: memory.content, path: memPath }) }],
+              content: [
+                { type: 'text', text: JSON.stringify({ text: memory.content, path: memPath }) },
+              ],
             };
           } catch {
             return {
-              content: [{ type: 'text', text: JSON.stringify({ text: '', path: memPath, error: 'Memory not found' }) }],
+              content: [
+                {
+                  type: 'text',
+                  text: JSON.stringify({ text: '', path: memPath, error: 'Memory not found' }),
+                },
+              ],
             };
           }
         }
@@ -105,7 +131,9 @@ export function registerTools(api: PluginApi, client: KeyokuClient, entityId: st
         }
 
         return {
-          content: [{ type: 'text', text: JSON.stringify({ text: '', path: memPath, error: 'Not found' }) }],
+          content: [
+            { type: 'text', text: JSON.stringify({ text: '', path: memPath, error: 'Not found' }) },
+          ],
         };
       },
     },
@@ -127,7 +155,12 @@ export function registerTools(api: PluginApi, client: KeyokuClient, entityId: st
         const result = await client.remember(entityId, text, { agent_id: agentId });
 
         return {
-          content: [{ type: 'text', text: `Stored: "${text.slice(0, 100)}${text.length > 100 ? '...' : ''}"` }],
+          content: [
+            {
+              type: 'text',
+              text: `Stored: "${text.slice(0, 100)}${text.length > 100 ? '...' : ''}"`,
+            },
+          ],
           details: { memories_created: result.memories_created },
         };
       },
@@ -192,7 +225,9 @@ export function registerTools(api: PluginApi, client: KeyokuClient, entityId: st
         'Create a scheduled task/reminder. Cron tags: "daily", "weekly", "monthly", or a cron expression.',
       parameters: Type.Object({
         content: Type.String({ description: 'What to schedule' }),
-        cron_tag: Type.String({ description: 'Cron tag: "daily", "weekly", "monthly", or cron expression' }),
+        cron_tag: Type.String({
+          description: 'Cron tag: "daily", "weekly", "monthly", or cron expression',
+        }),
       }),
       async execute(_toolCallId, params) {
         const { content, cron_tag } = params as { content: string; cron_tag: string };
@@ -224,9 +259,7 @@ export function registerTools(api: PluginApi, client: KeyokuClient, entityId: st
           };
         }
 
-        const text = schedules
-          .map((s, i) => `${i + 1}. ${s.content} (id: ${s.id})`)
-          .join('\n');
+        const text = schedules.map((s, i) => `${i + 1}. ${s.content} (id: ${s.id})`).join('\n');
 
         return {
           content: [{ type: 'text', text: `${schedules.length} schedules:\n\n${text}` }],

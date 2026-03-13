@@ -15,9 +15,10 @@ import type { KeyokuClient } from '@keyoku/memory';
 
 // node:sqlite (DatabaseSync) requires Node >= 22.5.0
 // We use dynamic import so the rest of the plugin works on Node 20+
-async function openSqlite(path: string): Promise<{ all(sql: string): Record<string, unknown>[]; close(): void }> {
+async function openSqlite(
+  path: string,
+): Promise<{ all(sql: string): Record<string, unknown>[]; close(): void }> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { DatabaseSync } = await import('node:sqlite');
     const db = new DatabaseSync(path, { open: true } as never);
     return {
@@ -31,7 +32,7 @@ async function openSqlite(path: string): Promise<{ all(sql: string): Record<stri
   } catch {
     throw new Error(
       'Vector store migration requires Node.js >= 22.5.0 (for node:sqlite). ' +
-      'Please upgrade Node.js or export your OpenClaw SQLite data manually.',
+        'Please upgrade Node.js or export your OpenClaw SQLite data manually.',
     );
   }
 }
@@ -127,9 +128,8 @@ export async function migrateVectorStore(params: {
       }
 
       // Build tagged content with source context
-      const locationInfo = row.start_line != null
-        ? ` (lines ${row.start_line}-${row.end_line})`
-        : '';
+      const locationInfo =
+        row.start_line != null ? ` (lines ${row.start_line}-${row.end_line})` : '';
       const sourceInfo = row.path || row.source || dbName;
       const taggedText = `[Migrated from OpenClaw vector store — ${sourceInfo}${locationInfo}]\n${row.text}`;
 

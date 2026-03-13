@@ -11,7 +11,14 @@ import type {
   MemoryStats,
 } from '@keyoku/types';
 
-export { type Memory, type SearchResult, type RememberResult, type HeartbeatResult, type HeartbeatContextResult, type MemoryStats } from '@keyoku/types';
+export {
+  type Memory,
+  type SearchResult,
+  type RememberResult,
+  type HeartbeatResult,
+  type HeartbeatContextResult,
+  type MemoryStats,
+} from '@keyoku/types';
 
 export class KeyokuError extends Error {
   constructor(
@@ -30,7 +37,11 @@ export class KeyokuClient {
   private token?: string;
   private tokenFn?: () => string | undefined;
 
-  constructor(options: { baseUrl?: string; timeout?: number; token?: string | (() => string | undefined) }) {
+  constructor(options: {
+    baseUrl?: string;
+    timeout?: number;
+    token?: string | (() => string | undefined);
+  }) {
     this.baseUrl = (options.baseUrl ?? 'http://localhost:18900').replace(/\/$/, '');
     this.timeout = options.timeout ?? 30000;
     if (typeof options.token === 'function') {
@@ -64,10 +75,14 @@ export class KeyokuClient {
 
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}));
-        throw new KeyokuError(res.status, (errBody as Record<string, string>).error || res.statusText, path);
+        throw new KeyokuError(
+          res.status,
+          (errBody as Record<string, string>).error || res.statusText,
+          path,
+        );
       }
 
-      return await res.json() as T;
+      return (await res.json()) as T;
     } finally {
       clearTimeout(timer);
     }
@@ -75,13 +90,17 @@ export class KeyokuClient {
 
   // === Memory ===
 
-  async remember(entityId: string, content: string, options?: {
-    session_id?: string;
-    agent_id?: string;
-    source?: string;
-    team_id?: string;
-    visibility?: string;
-  }): Promise<RememberResult> {
+  async remember(
+    entityId: string,
+    content: string,
+    options?: {
+      session_id?: string;
+      agent_id?: string;
+      source?: string;
+      team_id?: string;
+      visibility?: string;
+    },
+  ): Promise<RememberResult> {
     return this.request<RememberResult>('POST', '/api/v1/remember', {
       entity_id: entityId,
       content,
@@ -89,13 +108,17 @@ export class KeyokuClient {
     });
   }
 
-  async search(entityId: string, query: string, options?: {
-    limit?: number;
-    mode?: string;
-    agent_id?: string;
-    team_aware?: boolean;
-    min_score?: number;
-  }): Promise<SearchResult[]> {
+  async search(
+    entityId: string,
+    query: string,
+    options?: {
+      limit?: number;
+      mode?: string;
+      agent_id?: string;
+      team_aware?: boolean;
+      min_score?: number;
+    },
+  ): Promise<SearchResult[]> {
     return this.request<SearchResult[]>('POST', '/api/v1/search', {
       entity_id: entityId,
       query,
@@ -125,14 +148,17 @@ export class KeyokuClient {
 
   // === Heartbeat ===
 
-  async heartbeatCheck(entityId: string, options?: {
-    deadline_window?: string;
-    decay_threshold?: number;
-    importance_floor?: number;
-    max_results?: number;
-    agent_id?: string;
-    team_id?: string;
-  }): Promise<HeartbeatResult> {
+  async heartbeatCheck(
+    entityId: string,
+    options?: {
+      deadline_window?: string;
+      decay_threshold?: number;
+      importance_floor?: number;
+      max_results?: number;
+      agent_id?: string;
+      team_id?: string;
+    },
+  ): Promise<HeartbeatResult> {
     return this.request<HeartbeatResult>('POST', '/api/v1/heartbeat/check', {
       entity_id: entityId,
       ...options,
@@ -140,39 +166,55 @@ export class KeyokuClient {
   }
 
   /** Combined heartbeat + context search in a single call, with optional LLM analysis. */
-  async heartbeatContext(entityId: string, options?: {
-    query?: string;
-    top_k?: number;
-    min_score?: number;
-    deadline_window?: string;
-    max_results?: number;
-    agent_id?: string;
-    team_id?: string;
-    analyze?: boolean;
-    activity_summary?: string;
-    autonomy?: 'observe' | 'suggest' | 'act';
-    in_conversation?: boolean;
-  }): Promise<HeartbeatContextResult> {
+  async heartbeatContext(
+    entityId: string,
+    options?: {
+      query?: string;
+      top_k?: number;
+      min_score?: number;
+      deadline_window?: string;
+      max_results?: number;
+      agent_id?: string;
+      team_id?: string;
+      analyze?: boolean;
+      activity_summary?: string;
+      autonomy?: 'observe' | 'suggest' | 'act';
+      in_conversation?: boolean;
+    },
+  ): Promise<HeartbeatContextResult> {
     return this.request<HeartbeatContextResult>('POST', '/api/v1/heartbeat/context', {
       entity_id: entityId,
       ...options,
     });
   }
 
-  async recordHeartbeatMessage(entityId: string, message: string, options?: {
-    agent_id?: string;
-    action_id?: string;
-  }): Promise<{ status: string; id: string }> {
-    return this.request<{ status: string; id: string }>('POST', '/api/v1/heartbeat/record-message', {
-      entity_id: entityId,
-      message,
-      ...options,
-    });
+  async recordHeartbeatMessage(
+    entityId: string,
+    message: string,
+    options?: {
+      agent_id?: string;
+      action_id?: string;
+    },
+  ): Promise<{ status: string; id: string }> {
+    return this.request<{ status: string; id: string }>(
+      'POST',
+      '/api/v1/heartbeat/record-message',
+      {
+        entity_id: entityId,
+        message,
+        ...options,
+      },
+    );
   }
 
   // === Schedules ===
 
-  async createSchedule(entityId: string, agentId: string, content: string, cronTag: string): Promise<Memory> {
+  async createSchedule(
+    entityId: string,
+    agentId: string,
+    content: string,
+    cronTag: string,
+  ): Promise<Memory> {
     return this.request<Memory>('POST', '/api/v1/schedule', {
       entity_id: entityId,
       agent_id: agentId,

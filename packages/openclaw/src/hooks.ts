@@ -128,7 +128,11 @@ export function registerHooks(
         // was within the last 15 minutes. Messages may have a `timestamp` field
         // (ISO string or epoch ms). If no timestamps available, fall back to
         // checking only the last few messages in the array.
-        const msgs = (ev.messages ?? []) as Array<{ role?: string; content?: string; timestamp?: string | number }>;
+        const msgs = (ev.messages ?? []) as Array<{
+          role?: string;
+          content?: string;
+          timestamp?: string | number;
+        }>;
         const CONVERSATION_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
         const now = Date.now();
         let hasUserMessages = false;
@@ -152,10 +156,11 @@ export function registerHooks(
 
             // If message has a timestamp, use it
             if (msg.timestamp) {
-              const ts = typeof msg.timestamp === 'number'
-                ? msg.timestamp
-                : new Date(msg.timestamp).getTime();
-              if (!isNaN(ts) && (now - ts) < CONVERSATION_WINDOW_MS) {
+              const ts =
+                typeof msg.timestamp === 'number'
+                  ? msg.timestamp
+                  : new Date(msg.timestamp).getTime();
+              if (!isNaN(ts) && now - ts < CONVERSATION_WINDOW_MS) {
                 hasUserMessages = true;
               }
             } else {
@@ -166,8 +171,9 @@ export function registerHooks(
           }
         }
 
-        const heartbeatQuery = activitySummary
-          || 'important things about this user, recent plans, preferences, and what they care about';
+        const heartbeatQuery =
+          activitySummary ||
+          'important things about this user, recent plans, preferences, and what they care about';
 
         try {
           const ctx = await client.heartbeatContext(entityId, {
@@ -192,13 +198,15 @@ export function registerHooks(
               const analysis = ctx.analysis;
               const analyzed = analysis ? ` [${analysis.autonomy}/${analysis.urgency}]` : '';
               api.logger.info?.(
-                `keyoku: heartbeat ${decision} (memories: ${memories.length}, tier: ${ctx.highest_urgency_tier ?? 'n/a'}${analyzed})`
+                `keyoku: heartbeat ${decision} (memories: ${memories.length}, tier: ${ctx.highest_urgency_tier ?? 'n/a'}${analyzed})`,
               );
               return { prependContext: formatted };
             }
           }
 
-          api.logger.info?.(`keyoku: heartbeat ${decision} (should_act: false, memories: ${memories.length})`);
+          api.logger.info?.(
+            `keyoku: heartbeat ${decision} (should_act: false, memories: ${memories.length})`,
+          );
         } catch (err) {
           api.logger.warn(`keyoku: heartbeat context failed: ${String(err)}`);
         }
@@ -241,7 +249,10 @@ export function registerHooks(
   if (config.heartbeat) {
     api.on('agent_end', async (event: unknown) => {
       const ev = event as {
-        messages?: Array<{ role?: string; content?: string | Array<{ type?: string; text?: string }> }>;
+        messages?: Array<{
+          role?: string;
+          content?: string | Array<{ type?: string; text?: string }>;
+        }>;
         output?: string;
       };
 
@@ -272,7 +283,13 @@ export function registerHooks(
       }
 
       // Don't record non-messages
-      if (!response || response === 'HEARTBEAT_OK' || response === 'NO_REPLY' || response.length < 10) return;
+      if (
+        !response ||
+        response === 'HEARTBEAT_OK' ||
+        response === 'NO_REPLY' ||
+        response.length < 10
+      )
+        return;
 
       try {
         await client.recordHeartbeatMessage(entityId, response, { agent_id: agentId });

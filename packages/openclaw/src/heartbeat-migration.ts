@@ -179,7 +179,8 @@ export async function migrateHeartbeatRules(params: {
         result.schedules++;
         logger.info(`Migrated schedule: ${rule.content.slice(0, 60)}`);
       } else {
-        const prefix = rule.type === 'rule' ? '[User heartbeat rule]' : '[User heartbeat preference]';
+        const prefix =
+          rule.type === 'rule' ? '[User heartbeat rule]' : '[User heartbeat preference]';
         await client.remember(entityId, `${prefix} ${rule.content}`, {
           agent_id: agentId,
           source: 'migration:heartbeat',

@@ -50,15 +50,19 @@ ${KEYOKU_SECTION_END}
 function hasUserContent(content: string): boolean {
   // Strip out the keyoku section to check if there's OTHER content
   const withoutKeyoku = content
-    .replace(new RegExp(`${escapeRegex(KEYOKU_SECTION_MARKER)}[\\s\\S]*?${escapeRegex(KEYOKU_SECTION_END)}`, 'g'), '')
+    .replace(
+      new RegExp(
+        `${escapeRegex(KEYOKU_SECTION_MARKER)}[\\s\\S]*?${escapeRegex(KEYOKU_SECTION_END)}`,
+        'g',
+      ),
+      '',
+    )
     .trim();
 
-  return withoutKeyoku
-    .split('\n')
-    .some((line: string) => {
-      const trimmed = line.trim();
-      return trimmed.length > 0 && !trimmed.startsWith('#') && trimmed !== '---';
-    });
+  return withoutKeyoku.split('\n').some((line: string) => {
+    const trimmed = line.trim();
+    return trimmed.length > 0 && !trimmed.startsWith('#') && trimmed !== '---';
+  });
 }
 
 function escapeRegex(s: string): string {
@@ -87,7 +91,9 @@ export function ensureHeartbeatMd(api: PluginApi): void {
     // Already has keyoku section — update it in place
     if (content.includes(KEYOKU_SECTION_MARKER)) {
       const updated = content.replace(
-        new RegExp(`${escapeRegex(KEYOKU_SECTION_MARKER)}[\\s\\S]*?${escapeRegex(KEYOKU_SECTION_END)}`),
+        new RegExp(
+          `${escapeRegex(KEYOKU_SECTION_MARKER)}[\\s\\S]*?${escapeRegex(KEYOKU_SECTION_END)}`,
+        ),
         `${KEYOKU_SECTION_MARKER}\n${KEYOKU_HEARTBEAT_INSTRUCTIONS}\n${KEYOKU_SECTION_END}`,
       );
       if (updated !== content) {
