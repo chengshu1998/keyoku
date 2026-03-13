@@ -1133,10 +1133,10 @@ export async function init(): Promise<void> {
     `     ${c.dim}openclaw memory search${c.reset}    ${c.dim}search stored memories${c.reset}`,
   );
   console.log('');
-  console.log(`  ${c.gray}3.${c.reset} ${c.yellow}Heartbeat requires a group chat${c.reset}`);
-  console.log(`     ${c.dim}OpenClaw delivers heartbeats to group chats only (not DMs).${c.reset}`);
+  console.log(`  ${c.gray}3.${c.reset} ${c.yellow}Heartbeat is managed by Keyoku${c.reset}`);
+  console.log(`     ${c.dim}Keyoku's watcher handles heartbeat ticks and delivery automatically.${c.reset}`);
   console.log(
-    `     ${c.dim}Add your bot to a Telegram/Discord/WhatsApp group to receive proactive check-ins.${c.reset}`,
+    `     ${c.dim}Configure delivery via KEYOKU_DELIVERY_* env vars or the watcher API.${c.reset}`,
   );
   console.log('');
   console.log(`  ${c.indigo}${'━'.repeat(52)}${c.reset}`);
