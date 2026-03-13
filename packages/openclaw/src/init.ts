@@ -175,11 +175,17 @@ async function prompt(question: string): Promise<string> {
     });
   }
   return new Promise((resolve) => {
+    let resolved = false;
+    const onClose = () => {
+      if (!resolved) { resolved = true; resolve(''); }
+    };
     ttyRl!.question(`  ${c.purple}?${c.reset} ${question} `, (answer) => {
+      resolved = true;
+      ttyRl?.removeListener('close', onClose);
       resolve(answer.trim());
     });
     // If readline closes before answering, resolve with empty string (use default)
-    ttyRl!.once('close', () => resolve(''));
+    ttyRl!.once('close', onClose);
   });
 }
 
