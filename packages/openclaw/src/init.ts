@@ -461,68 +461,26 @@ function installSkill(): void {
   success(`SKILL.md installed → ${c.dim}~/.openclaw/skills/keyoku-memory/${c.reset}`);
 }
 
-// ── HEARTBEAT.md Installation ────────────────────────────────────────────
+// ── HEARTBEAT.md Migration ───────────────────────────────────────────────
 
 /**
- * Install HEARTBEAT.md to the OpenClaw workspace directory.
- * Must be done at init time (not at plugin register time) because OpenClaw's
- * heartbeat system overwrites the file with a default placeholder after plugins register.
- *
- * If an existing HEARTBEAT.md has user content, preserves it and appends keyoku section.
- * Returns extracted heartbeat rules for migration into Keyoku.
+ * Extract user heartbeat rules from an existing HEARTBEAT.md for migration
+ * into Keyoku. Does NOT write or maintain HEARTBEAT.md — keyoku-engine's
+ * watcher owns the heartbeat loop now, so OpenClaw's heartbeat runner is unused.
  */
-function installHeartbeatMd(): HeartbeatRule[] {
-  const workspaceDir = join(HOME, '.openclaw', 'workspace');
-  mkdirSync(workspaceDir, { recursive: true });
-  const heartbeatPath = join(workspaceDir, 'HEARTBEAT.md');
+function extractExistingHeartbeatRules(): HeartbeatRule[] {
+  const heartbeatPath = join(HOME, '.openclaw', 'workspace', 'HEARTBEAT.md');
 
-  const KEYOKU_SECTION = `<!-- keyoku-heartbeat-start -->
-## Keyoku Memory Heartbeat
-
-You have been checked in on. Your memory system has reviewed your recent activity and surfaced anything that needs your attention. The signals are injected into your context automatically — look for the <heartbeat-signals> block.
-
-### How to respond
-
-IMPORTANT: If the signals contain \`should_act: true\` or a "Tell the User" section with ANY content, you MUST write a message to the user. Do NOT reply HEARTBEAT_OK in that case. Say something — even one sentence is fine.
-
-1. Read the signals carefully. Check urgency, mode, and should_act.
-2. If \`should_act\` is true — you MUST send a message. Use the "Tell the User" or "Action Brief" section as guidance for what to say. Keep it natural and brief.
-3. If mode is \`act\` — take action immediately. Do what the signal says.
-4. If mode is \`suggest\` and urgency is not \`none\` — surface the suggestion naturally.
-5. ONLY reply HEARTBEAT_OK if \`should_act\` is false AND there is truly nothing in the signals worth mentioning.
-
-Do not repeat old tasks from prior conversations. Only act on what the signals say right now.
-<!-- keyoku-heartbeat-end -->`;
-
-  let extractedRules: HeartbeatRule[] = [];
-
-  if (existsSync(heartbeatPath)) {
-    const existing = readFileSync(heartbeatPath, 'utf-8');
-
-    // Extract user rules before modifying the file
-    extractedRules = extractHeartbeatRules(existing);
-    if (extractedRules.length > 0) {
-      info(`Found ${extractedRules.length} heartbeat rule(s) to migrate`);
-    }
-
-    if (existing.includes('keyoku-heartbeat-start')) {
-      success('HEARTBEAT.md already configured');
-      return extractedRules;
-    }
-
-    // Preserve existing user content, append keyoku section
-    const content = existing.trimEnd() + `\n\n---\n\n${KEYOKU_SECTION}\n`;
-    writeFileSync(heartbeatPath, content, 'utf-8');
-    success(
-      `HEARTBEAT.md updated (preserved existing content) → ${c.dim}~/.openclaw/workspace/${c.reset}`,
-    );
-    return extractedRules;
+  if (!existsSync(heartbeatPath)) {
+    return [];
   }
 
-  // No existing file — write full template
-  writeFileSync(heartbeatPath, `# Heartbeat Check\n\n${KEYOKU_SECTION}\n`, 'utf-8');
-  success(`HEARTBEAT.md installed → ${c.dim}~/.openclaw/workspace/${c.reset}`);
-  return extractedRules;
+  const existing = readFileSync(heartbeatPath, 'utf-8');
+  const rules = extractHeartbeatRules(existing);
+  if (rules.length > 0) {
+    info(`Found ${rules.length} heartbeat rule(s) to migrate`);
+  }
+  return rules;
 }
 
 // ── LLM Provider Setup ──────────────────────────────────────────────────
@@ -825,126 +783,20 @@ async function setupTimezoneAndQuietHours(): Promise<void> {
   );
 }
 
-// ── Heartbeat Delivery Setup ─────────────────────────────────────────────
+// ── Heartbeat ────────────────────────────────────────────────────────────
 
 /**
- * Platform-specific instructions for finding group chat IDs.
+ * Disable OpenClaw's built-in heartbeat runner.
+ * Keyoku's watcher now owns the heartbeat loop and delivery.
  */
-const GROUP_ID_HINTS: Record<string, string> = {
-  telegram:
-    'Add @RawDataBot to your group — it replies with the chat ID (a negative number like -4970078838)',
-  discord:
-    'Right-click your channel → Copy Channel ID (enable Developer Mode in Settings → Advanced first)',
-  slack: 'Open channel details → scroll to the bottom → Channel ID',
-  whatsapp: 'Group JID (shown in WhatsApp Web URL or API logs)',
-  googlechat: 'Space ID from the URL (spaces/<id>)',
-  msteams: 'Channel ID from Teams admin or Graph API',
-  signal: 'Group ID from Signal API logs',
-};
-
-/**
- * Set up heartbeat delivery in openclaw.json.
- *
- * Detects configured channels, asks for a group chat ID,
- * and writes agents.defaults.heartbeat with target + to.
- */
-async function setupHeartbeatDelivery(config: OpenClawConfig): Promise<void> {
-  // Detect configured channels from openclaw.json
-  const channels = config.channels as Record<string, unknown> | undefined;
-  const configuredChannels = channels ? Object.keys(channels).filter((k) => k !== 'defaults') : [];
-
-  if (configuredChannels.length === 0) {
-    log('No messaging channels configured in openclaw.json');
-    log("Heartbeat will run but messages won't be delivered externally");
-    log(`${c.dim}Configure a channel (telegram, discord, etc.) and re-run init${c.reset}`);
-    return;
-  }
-
-  info(`Detected channel(s): ${c.bold}${configuredChannels.join(', ')}${c.reset}`);
-
-  console.log('');
-  log('Heartbeat lets your agent proactively message you when something needs attention.');
-  log(`${c.yellow}Heartbeats deliver to group chats only — DMs are blocked by OpenClaw.${c.reset}`);
-
-  const enableDelivery = await choose('Set up heartbeat delivery now?', [
-    { label: 'Yes', value: 'yes', desc: 'configure group chat delivery' },
-    { label: 'Skip', value: 'no', desc: 'heartbeat runs but no messages sent' },
-  ]);
-
-  if (enableDelivery === 'no') {
-    // Write target: "none" explicitly so it's clear in config
-    ensureAgentsDefaults(config);
-    config.agents!.defaults!.heartbeat = {
-      ...config.agents!.defaults!.heartbeat,
-      every: '30m',
-      target: 'none',
-    };
-    writeOpenClawConfig(config);
-    success('Heartbeat delivery → none (runs silently)');
-    return;
-  }
-
-  // Pick channel
-  let targetChannel: string;
-  if (configuredChannels.length === 1) {
-    targetChannel = configuredChannels[0];
-    info(`Using ${c.bold}${targetChannel}${c.reset} (only configured channel)`);
-  } else {
-    const channelOptions = configuredChannels.map((ch) => ({
-      label: ch.charAt(0).toUpperCase() + ch.slice(1),
-      value: ch,
-    }));
-    targetChannel = await choose(
-      'Which channel should receive heartbeat messages?',
-      channelOptions,
-    );
-  }
-
-  // Get group chat ID
-  const hint = GROUP_ID_HINTS[targetChannel];
-  console.log('');
-  log(`Enter the ${c.bold}group chat ID${c.reset} for ${targetChannel}.`);
-  if (hint) {
-    log(`${c.dim}Tip: ${hint}${c.reset}`);
-  }
-  log(`${c.yellow}Must be a group/channel — DMs will not work.${c.reset}`);
-  console.log('');
-
-  const groupId = await prompt(`${targetChannel} group chat ID:`);
-
-  if (!groupId) {
-    warn('No group ID provided — heartbeat delivery disabled');
-    ensureAgentsDefaults(config);
-    config.agents!.defaults!.heartbeat = {
-      ...config.agents!.defaults!.heartbeat,
-      every: '30m',
-      target: 'none',
-    };
-    writeOpenClawConfig(config);
-    return;
-  }
-
-  // Pick interval
-  const interval = await choose('Heartbeat interval?', [
-    { label: '15 minutes', value: '15m', desc: 'balanced' },
-    { label: '30 minutes', value: '30m', desc: 'default, lower cost' },
-    { label: '1 hour', value: '1h', desc: 'minimal cost' },
-    { label: '5 minutes', value: '5m', desc: 'frequent, higher cost' },
-  ]);
-
-  // Write to openclaw.json
+function disableOpenClawHeartbeat(config: OpenClawConfig): void {
   ensureAgentsDefaults(config);
   config.agents!.defaults!.heartbeat = {
     ...config.agents!.defaults!.heartbeat,
-    every: interval,
-    target: targetChannel,
-    to: groupId,
+    target: 'none',
   };
   writeOpenClawConfig(config);
-
-  success(
-    `Heartbeat → ${c.bold}${targetChannel}${c.reset} (group: ${c.dim}${groupId}${c.reset}, every ${interval})`,
-  );
+  success('OpenClaw heartbeat → disabled (keyoku watcher handles heartbeat)');
 }
 
 /**
@@ -1148,16 +1000,16 @@ export async function init(): Promise<void> {
   stepHeader('Timezone & Quiet Hours');
   await setupTimezoneAndQuietHours();
 
-  // Step 8: Heartbeat delivery
-  stepHeader('Heartbeat Delivery');
-  await setupHeartbeatDelivery(config);
+  // Step 8: Disable OpenClaw's heartbeat (keyoku's watcher handles it now)
+  stepHeader('Heartbeat');
+  disableOpenClawHeartbeat(config);
 
   // Step 9: SKILL.md
   stepHeader('Install Skill Guide');
   installSkill();
 
-  // Step 9b: HEARTBEAT.md (extract user rules before writing keyoku section)
-  const heartbeatRules = installHeartbeatMd();
+  // Step 9b: Extract existing heartbeat rules for migration (keyoku's watcher owns heartbeat now)
+  const heartbeatRules = extractExistingHeartbeatRules();
 
   // Step 10: Migration
   const memoryMdPath = join(HOME, '.openclaw', 'MEMORY.md');
