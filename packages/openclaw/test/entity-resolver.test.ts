@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { resolveConfig } from '../src/config.js';
 import { createEntityResolver } from '../src/entity-resolver.js';
 
@@ -44,5 +44,18 @@ describe('entity resolver', () => {
     expect(resolver.resolve({ provider: 'slack', sender: { id: 'U1' } }, 'capture')).toBe(
       'base:slack:U1',
     );
+  });
+
+  it('logs warning when scoped strategy falls back to base entity', () => {
+    const warn = vi.fn();
+    const resolver = createEntityResolver(
+      'base',
+      resolveConfig({ entityStrategy: 'per-user' }),
+      { warn },
+    );
+
+    expect(resolver.resolve({}, 'capture')).toBe('base');
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain('fallback to base entity');
   });
 });

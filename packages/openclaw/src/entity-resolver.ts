@@ -121,10 +121,27 @@ function isGroupLike(chatType?: string): boolean {
   return normalized.includes('group') || normalized.includes('channel') || normalized.includes('room');
 }
 
+type ResolverLogger = {
+  warn?: (message: string) => void;
+};
+
 export function createEntityResolver(
   baseEntityId: string,
   config: Required<KeyokuConfig>,
+  logger?: ResolverLogger,
 ): EntityResolver {
+  const warnedFallbacks = new Set<string>();
+
+  function warnFallback(strategy: string, reason: string, ctx: ScopeContext): void {
+    const key = `${strategy}:${reason}`;
+    if (warnedFallbacks.has(key)) return;
+    warnedFallbacks.add(key);
+
+    logger?.warn?.(
+      `keyoku: entity resolver fallback to base entity "${baseEntityId}" (strategy=${strategy}, reason=${reason}, provider=${ctx.provider ?? 'unknown'}, chatType=${ctx.chatType ?? 'unknown'})`,
+    );
+  }
+
   function resolve(event: unknown, _use: MemoryUse): string {
     const strategy = config.entityStrategy;
     if (strategy === 'static') return baseEntityId;
@@ -136,18 +153,22 @@ export function createEntityResolver(
     const chat = ctx.chatId ? sanitizePart(ctx.chatId) : undefined;
 
     if (strategy === 'per-session') {
-      return session ? `${baseEntityId}:session:${session}` : baseEntityId;
+      if (session) return `${baseEntityId}:session:${session}`;
+      warnFallback(strategy, 'missing-session', ctx);
+      return baseEntityId;
     }
 
     if (strategy === 'per-user') {
       if (sender) return `${baseEntityId}:user:${provider}:${sender}`;
       if (session) return `${baseEntityId}:session:${session}`;
+      warnFallback(strategy, 'missing-sender-and-session', ctx);
       return baseEntityId;
     }
 
     if (strategy === 'per-channel') {
       if (chat) return `${baseEntityId}:channel:${provider}:${chat}`;
       if (session) return `${baseEntityId}:session:${session}`;
+      warnFallback(strategy, 'missing-chat-and-session', ctx);
       return baseEntityId;
     }
 

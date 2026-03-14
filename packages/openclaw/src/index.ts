@@ -39,7 +39,7 @@ export default function keyokuMemory(config?: KeyokuConfig) {
       // agentId = attribution marker for writes
       const entityId = cfg.entityId || 'default';
       const agentId = cfg.agentId || 'default';
-      const resolver = createEntityResolver(entityId, cfg);
+      const resolver = createEntityResolver(entityId, cfg, api.logger);
 
       // Token resolved lazily — the service generates it at startup, after register()
       // 60s timeout: remember calls LLM extraction, heartbeatContext does analysis
