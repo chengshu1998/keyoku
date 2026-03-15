@@ -238,4 +238,66 @@ export class KeyokuClient {
   async cancelSchedule(id: string): Promise<{ status: string; memory_id: string }> {
     return this.request<{ status: string; memory_id: string }>('DELETE', `/api/v1/schedule/${id}`);
   }
+
+  // === Watcher ===
+
+  async watcherStatus(): Promise<WatcherStatus> {
+    return this.request<WatcherStatus>('GET', '/api/v1/watcher/status');
+  }
+
+  async watcherHistory(options?: { limit?: number }): Promise<WatcherTickHistory> {
+    const params = new URLSearchParams();
+    if (options?.limit) params.set('limit', String(options.limit));
+    const qs = params.toString();
+    return this.request<WatcherTickHistory>('GET', `/api/v1/watcher/history${qs ? `?${qs}` : ''}`);
+  }
+
+  async watcherStart(
+    entityIds: string[],
+    options?: { interval_ms?: number },
+  ): Promise<{ status: string }> {
+    return this.request<{ status: string }>('POST', '/api/v1/watcher/start', {
+      entity_ids: entityIds,
+      ...options,
+    });
+  }
+
+  async watcherStop(): Promise<{ status: string }> {
+    return this.request<{ status: string }>('POST', '/api/v1/watcher/stop');
+  }
+
+  // === Health ===
+
+  async health(): Promise<{ status: string; timestamp: string; sse_clients: number }> {
+    return this.request<{ status: string; timestamp: string; sse_clients: number }>(
+      'GET',
+      '/api/v1/health',
+    );
+  }
+}
+
+// Watcher types
+export interface WatcherStatus {
+  running: boolean;
+  entity_ids: string[];
+  interval_ms: number;
+  tick_count: number;
+  last_tick?: string;
+  adaptive: boolean;
+}
+
+export interface WatcherTick {
+  tick_number: number;
+  timestamp: string;
+  entity_id: string;
+  signals_found: number;
+  should_act: boolean;
+  decision_reason: string;
+  urgency?: string;
+  interval_ms: number;
+}
+
+export interface WatcherTickHistory {
+  ticks: WatcherTick[];
+  total: number;
 }

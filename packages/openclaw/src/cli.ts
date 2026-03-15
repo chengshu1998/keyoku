@@ -164,6 +164,121 @@ export function registerCli(api: PluginApi, client: KeyokuClient, entityId: stri
             );
           }
         });
+      // === Watcher commands ===
+
+      memory
+        .command('watcher')
+        .description('Show watcher status and recent ticks')
+        .option('--limit <n>', 'Number of recent ticks to show', '5')
+        .action(async (opts: unknown) => {
+          const limit = parseInt((opts as { limit: string }).limit, 10);
+
+          try {
+            const status = await client.watcherStatus();
+            console.log(`Watcher: ${status.running ? 'RUNNING' : 'STOPPED'}`);
+            if (status.running) {
+              console.log(`  Entity IDs: ${status.entity_ids.join(', ')}`);
+              console.log(`  Interval: ${status.interval_ms}ms`);
+              console.log(`  Ticks: ${status.tick_count}`);
+              console.log(`  Adaptive: ${status.adaptive}`);
+              if (status.last_tick) console.log(`  Last tick: ${status.last_tick}`);
+            }
+          } catch {
+            console.log('Watcher: unable to reach engine');
+            return;
+          }
+
+          try {
+            const history = await client.watcherHistory({ limit });
+            if (history.ticks.length > 0) {
+              console.log(`\nRecent ticks (${history.ticks.length} of ${history.total}):`);
+              for (const tick of history.ticks) {
+                const acted = tick.should_act ? 'ACT' : 'skip';
+                console.log(
+                  `  #${tick.tick_number} [${acted}] signals=${tick.signals_found} urgency=${tick.urgency ?? 'none'} | ${tick.decision_reason}`,
+                );
+              }
+            }
+          } catch {
+            // History endpoint may not be available
+          }
+        });
+
+      // === Heartbeat commands ===
+
+      memory
+        .command('heartbeat')
+        .description('Run a heartbeat check and show active signals')
+        .action(async () => {
+          const result = await client.heartbeatCheck(entityId);
+          console.log(`Should act: ${result.should_act}`);
+
+          const sections: [string, unknown[]][] = [
+            ['Pending work', result.pending_work],
+            ['Deadlines', result.deadlines],
+            ['Scheduled', result.scheduled],
+            ['Decaying', result.decaying],
+            ['Conflicts', result.conflicts],
+            ['Stale monitors', result.stale_monitors],
+          ];
+
+          for (const [label, items] of sections) {
+            const arr = items as unknown[];
+            if (arr && arr.length > 0) {
+              console.log(`\n${label} (${arr.length}):`);
+              for (const item of arr) {
+                const m = item as { content: string; importance?: number };
+                const imp = m.importance ? ` [${(m.importance * 100).toFixed(0)}%]` : '';
+                console.log(`  ${imp} ${m.content.slice(0, 100)}`);
+              }
+            }
+          }
+
+          if (result.summary) console.log(`\nSummary: ${result.summary}`);
+          if (result.priority_action) console.log(`Priority: ${result.priority_action}`);
+        });
+
+      // === Schedule commands ===
+
+      memory
+        .command('schedules')
+        .description('List active scheduled tasks')
+        .action(async () => {
+          const schedules = await client.listSchedules(entityId);
+          if (schedules.length === 0) {
+            console.log('No active schedules.');
+            return;
+          }
+          console.log(`Active schedules (${schedules.length}):`);
+          for (const s of schedules) {
+            const tags = s.tags?.join(', ') ?? '';
+            console.log(`  [${s.id}] ${s.content.slice(0, 80)} ${tags ? `(${tags})` : ''}`);
+          }
+        });
+
+      // === Health command ===
+
+      memory
+        .command('health')
+        .description('Check engine health and memory stats')
+        .action(async () => {
+          try {
+            const h = await client.health();
+            console.log(`Engine: ${h.status} | SSE clients: ${h.sse_clients}`);
+          } catch {
+            console.log('Engine: unreachable');
+            return;
+          }
+
+          try {
+            const stats = await client.getStats(entityId);
+            console.log(`Memories: ${stats.total_memories} total, ${stats.active_memories} active`);
+            console.log(`By type: ${JSON.stringify(stats.by_type)}`);
+            console.log(`By state: ${JSON.stringify(stats.by_state)}`);
+          } catch {
+            // Stats may fail if no entity
+          }
+        });
     },
     { commands: ['memory'] },
   );
