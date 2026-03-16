@@ -8,7 +8,6 @@
 import { existsSync, mkdirSync, chmodSync, createWriteStream } from 'node:fs';
 import { join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
-import { findKeyokuBinary } from './service.js';
 
 const HOME = process.env.HOME ?? '';
 const KEYOKU_BIN_DIR = join(HOME, '.keyoku', 'bin');
@@ -30,33 +29,13 @@ function getPlatformInfo(): { os: string; arch: string } {
   };
 }
 
-async function getCurrentVersion(binPath: string | null): Promise<string | null> {
-  if (!binPath || !existsSync(binPath)) return null;
-  try {
-    const { execFileSync } = await import('node:child_process');
-    const output = execFileSync(binPath, ['--version'], { timeout: 5000 }).toString().trim();
-    return output;
-  } catch {
-    return null;
-  }
-}
-
 export async function updateEngine(): Promise<void> {
   const { os, arch } = getPlatformInfo();
   const assetName = `keyoku-server-${os}-${arch}${os === 'windows' ? '.exe' : ''}`;
-
-  const currentBin = findKeyokuBinary();
-  const currentVersion = await getCurrentVersion(
-    currentBin && existsSync(currentBin) ? currentBin : null,
-  );
+  const hasExisting = existsSync(KEYOKU_BIN_PATH);
 
   console.log(`Platform: ${os}/${arch}`);
-  if (currentVersion) {
-    console.log(`Current version: ${currentVersion}`);
-  } else {
-    console.log('No existing engine binary found — installing fresh.');
-  }
-
+  console.log(hasExisting ? `Existing binary: ${KEYOKU_BIN_PATH}` : 'No existing binary found.');
   console.log('Fetching latest release...');
 
   const releaseRes = await fetch(
@@ -74,13 +53,6 @@ export async function updateEngine(): Promise<void> {
     assets: Array<{ name: string; browser_download_url: string }>;
   };
 
-  console.log(`Latest release: ${release.tag_name}`);
-
-  if (currentVersion && currentVersion.includes(release.tag_name.replace('v', ''))) {
-    console.log('Already up to date.');
-    return;
-  }
-
   const asset = release.assets.find((a) => a.name === assetName);
   if (!asset) {
     console.error(`No binary found for ${os}/${arch} in release ${release.tag_name}`);
@@ -88,7 +60,7 @@ export async function updateEngine(): Promise<void> {
     process.exit(1);
   }
 
-  console.log(`Downloading ${asset.name}...`);
+  console.log(`Downloading ${release.tag_name} (${asset.name})...`);
 
   const downloadRes = await fetch(asset.browser_download_url);
   if (!downloadRes.ok || !downloadRes.body) {
@@ -106,6 +78,6 @@ export async function updateEngine(): Promise<void> {
     chmodSync(KEYOKU_BIN_PATH, 0o755);
   }
 
-  console.log(`Updated to ${release.tag_name} → ${KEYOKU_BIN_PATH}`);
+  console.log(`${hasExisting ? 'Updated' : 'Installed'} ${release.tag_name} → ${KEYOKU_BIN_PATH}`);
   console.log('Restart your engine or OpenClaw gateway to use the new version.');
 }
