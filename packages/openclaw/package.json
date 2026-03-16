@@ -13,8 +13,8 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@keyoku/memory": "1.4.0",
-    "@keyoku/types": "1.4.0",
+    "@keyoku/memory": "1.4.1",
+    "@keyoku/types": "1.4.1",
     "@sinclair/typebox": "^0.34.0"
   },
   "peerDependencies": {
