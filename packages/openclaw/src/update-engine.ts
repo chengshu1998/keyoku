@@ -79,5 +79,7 @@ export async function updateEngine(): Promise<void> {
   }
 
   console.log(`${hasExisting ? 'Updated' : 'Installed'} ${release.tag_name} → ${KEYOKU_BIN_PATH}`);
-  console.log('Restart your engine or OpenClaw gateway to use the new version.');
+  console.log('');
+  console.log('To apply the update, restart the engine:');
+  console.log(`  kill $(pgrep -f keyoku) && ${KEYOKU_BIN_PATH}`);
 }
